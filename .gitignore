@@ -1,0 +1,25 @@
+# Ignore Python virtual environments and libraries
+venv/
+env/
+.venv/
+Lib/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+*.sqlite3
+
+# Ignore IDE-specific folders
+.idea/
+.vscode/
+
+# Ignore large model/data files
+*.pt
+*.bin
+*.ckpt
+*.h5
+*.csv
+*.jsonl
+*.zip

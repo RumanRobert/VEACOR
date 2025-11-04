@@ -1,0 +1,18 @@
+# To set up the environment for this project:
+# Just run:  bash requirements_full.txt
+
+# --- Create and activate virtual environment (optional but recommended) ---
+# python -m venv venv
+# source venv/bin/activate  # (Windows: venv\Scripts\activate)
+
+# --- Install core dependencies ---
+pip install requests beautifulsoup4 lxml regex spacy keybert sentence-transformers torch scikit-learn numpy plotly pandas textwrap3
+
+# --- Download spaCy English model ---
+python -m spacy download en_core_web_sm
+
+# --- Optional: Verify installation ---
+python - <<'EOF'
+import spacy, plotly, sklearn, torch, requests
+print("✅ All dependencies installed successfully.")
+EOF
