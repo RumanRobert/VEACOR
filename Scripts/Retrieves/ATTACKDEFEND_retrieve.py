@@ -65,21 +65,36 @@ def find_all_layer_json_urls(page_soup, page_url):
     return sorted(found)
 
 
-# ---------- Core logic ----------
 def fetch_attack_data(attack_id: str, recursive=False):
-    """Given ATT&CK TID like 'T1059', return D3FEND countermeasures and description (no recursion)."""
+    """Fetch MITRE ATT&CK + D3FEND info for a given technique ID (e.g., 'T1059')."""
     tid = attack_id.strip().upper()
     api_url = API_URL.format(tid=tid)
     page_url = f"{BASE_URL}offensive-technique/attack/{tid}/"
-    result = {"ATTACK": tid, "DEFEND": set(), "Description": None}
+    result = {
+        "ATTACK": tid,
+        "DEFEND": set(),
+        "Description": None,
+        "Platforms": [],
+        "Tactic": None,
+        "Tactic_Type": None,
+        "Version": None,
+        "Mitigations": [],
+        "Detection_Strategy": []
+    }
 
+    headers = {"User-Agent": "attackdefend-lookup/1.0"}
+
+    # --- 1. Try D3FEND API linkages ---
     try:
-        resp = requests.get(api_url, timeout=20, headers={"User-Agent": "d3fend-lookup/1.0"})
+        resp = requests.get(api_url, timeout=20, headers=headers)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        result["error"] = f"Failed to fetch API {api_url}: {e}"
-        return result
+        if e.response is not None and e.response.status_code == 404:
+            result["error"] = f"Could not retrieve more information from official sources. Most likely cause by the attack technique being absent on MITRE DEFEND website."
+        else:
+            result["error"] = f"Failed to fetch D3FEND API: {e}"
+        data = {}
 
     bindings = data.get("off_to_def", {}).get("results", {}).get("bindings", [])
     if bindings:
@@ -89,56 +104,91 @@ def fetch_attack_data(attack_id: str, recursive=False):
                     if val["value"].upper().startswith("D3-"):
                         result["DEFEND"].add(val["value"].upper())
         result["Source_API"] = api_url
-        result["Note"] = "Extracted from API bindings"
     else:
         text_blob = json.dumps(data)
         result["DEFEND"].update(extract_d3ids_from_text(text_blob))
         result["Source_API"] = api_url
 
+    result["DEFEND"] = sorted(result["DEFEND"])
+    result["Mitigated_by"] = result["DEFEND"]
+
+    # --- 2. Scrape ATT&CK technique page ---
+    attack_url = f"https://attack.mitre.org/techniques/{tid}/"
     try:
-        resp_page = requests.get(page_url, timeout=20, headers={"User-Agent": "d3fend-lookup/1.0"})
-        if resp_page.status_code == 200:
-            soup = BeautifulSoup(resp_page.text, "html.parser")
-            desc_el = soup.find(lambda tag: tag.name in ("p", "div") and tag.get_text(strip=True) and len(tag.get_text(strip=True)) > 50)
-            if desc_el:
-                result["Description"] = desc_el.get_text(" ", strip=True)[:500]
-    except Exception:
-        result["Description"] = None
+        resp = requests.get(attack_url, timeout=20, headers=headers)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-    result["Mitigated_by"] = sorted(result["DEFEND"])
-    result["Source"] = page_url
+        # --- Title ---
+        title_el = soup.find("h1")
+        if title_el:
+            result["Title"] = title_el.get_text(" ", strip=True)
 
-    # ✅ Convert sets → sorted lists at the boundary
-    result["DEFEND"] = sorted(list(result["DEFEND"]))
-    result["Mitigated_by"] = list(result["DEFEND"])  # alias for compatibility
+        # --- Extract Info Block ---
+        info_block = soup.find("div", class_=re.compile(r"technique-meta|card-body", re.I))
+        if info_block:
+            text = info_block.get_text(" ", strip=True)
 
-    # ✅ Retrieve official ATT&CK technique name (from attack.mitre.org)
-    if not result.get("Title"):
-        try:
-            page_attack = requests.get(f"https://attack.mitre.org/techniques/{tid}/", timeout=15)
-            if page_attack.status_code == 200:
-                soup_attack = BeautifulSoup(page_attack.text, "html.parser")
-                title_el = soup_attack.find("h1")
-                if title_el:
-                    result["Title"] = title_el.get_text(strip=True)
-        except Exception:
-            result["Title"] = None
+            # Platforms
+            m = re.search(r"Platforms:\s*([^\n]+?)(?=Version|Created|Last Modified|$)", text, flags=re.I)
+            if m:
+                result["Platforms"] = [p.strip() for p in re.split(r"[,;/]", m.group(1)) if p.strip()]
 
-    # ✅ Retrieve official ATT&CK technique name (from attack.mitre.org)
-    if not result.get("Title"):
-        try:
-            page_attack = requests.get(f"https://attack.mitre.org/techniques/{tid}/", timeout=15)
-            if page_attack.status_code == 200:
-                soup_attack = BeautifulSoup(page_attack.text, "html.parser")
-                title_el = soup_attack.find("h1")
-                if title_el:
-                    result["Title"] = title_el.get_text(strip=True)
-        except Exception:
-            result["Title"] = None
+            # Version
+            m = re.search(r"Version:\s*([\w.\-]+)", text, flags=re.I)
+            if m:
+                result["Version"] = m.group(1).strip()
 
+            # Tactic
+            m = re.search(r"Tactic:\s*([A-Za-z0-9\s&\-]+)", text, flags=re.I)
+            if m:
+                result["Tactic"] = m.group(1).strip()
 
+            # Tactic Type
+            m = re.search(r"Tactic Type:\s*([A-Za-z0-9\s&\-]+)", text, flags=re.I)
+            if m:
+                result["Tactic_Type"] = m.group(1).strip()
+
+        # --- Description ---
+        desc = soup.find("div", class_=re.compile(r"description-body", re.I))
+        if desc:
+            result["Description"] = desc.get_text(" ", strip=True)
+
+        # --- Mitigations Section ---
+        mit_head = soup.find(lambda tag: tag.name in ["h2", "h3"] and "Mitigations" in tag.get_text())
+        if mit_head:
+            table = mit_head.find_next("table")
+            if table:
+                mitigations = []
+                for row in table.find_all("tr")[1:]:
+                    cells = [td.get_text(" ", strip=True) for td in row.find_all("td")]
+                    if any(cells):
+                        mitigations.append(" | ".join(cells))
+                result["Mitigations"] = mitigations
+
+        # --- Detection Strategy Section ---
+        det_head = soup.find(lambda tag: tag.name in ["h2", "h3"] and "Detection" in tag.get_text())
+        if det_head:
+            det_table = det_head.find_next("table")
+            dets = []
+            if det_table:
+                for row in det_table.find_all("tr")[1:]:
+                    cells = [td.get_text(" ", strip=True) for td in row.find_all("td")]
+                    if any(cells):
+                        dets.append(" | ".join(cells))
+            else:
+                # fallback to paragraph under detection
+                p = det_head.find_next("p")
+                if p:
+                    dets.append(p.get_text(" ", strip=True))
+            result["Detection_Strategy"] = dets
+
+    except Exception as e:
+        result["error_attack"] = f"Failed to parse ATT&CK technique page: {e}"
+
+    # --- 3. Return merged result ---
+    result["Source"] = attack_url
     return result
-
 
 
 
@@ -293,3 +343,7 @@ def fetch_defend_data(d3_id: str):
             result["Title"] = None
 
     return result
+
+if __name__ == "__main__":
+    data = fetch_attack_data("T1509")
+    print(json.dumps(data, indent=2, ensure_ascii=False))
