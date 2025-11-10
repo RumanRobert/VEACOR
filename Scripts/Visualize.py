@@ -643,19 +643,26 @@ while True:
 
 '''
 
-# #Tkinter display
-import json, os, re, time, tkinter as tk, subprocess, shutil
+#Tkinter display
+import json
+import os
+import re
+import time
+import tkinter as tk
+import subprocess
+import shutil
 from tkinter import messagebox
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ======================================================
 # === Helper: find all roadmap JSONs
 # ======================================================
-def find_roadmap_jsons(base_dir="."):
+def find_roadmap_jsons(base_dir=BASE_DIR):
     results = []
     for root, _, files in os.walk(base_dir):
         for f in files:
@@ -667,7 +674,7 @@ def find_roadmap_jsons(base_dir="."):
 # ======================================================
 # === Helper: open JSON file and scroll to node
 # ======================================================
-def open_json_for_node(node_id, base_dir="."):
+def open_json_for_node(node_id, base_dir=BASE_DIR):
     mapping = {
         "CVE": "CVEs.json",
         "CWE": "CWEs.json",
@@ -751,7 +758,6 @@ class GraphViewer(tk.Tk):
         self.file_dir = os.path.dirname(roadmap_file)
         self.G, self.node_meta = build_graph(roadmap_file)
 
-        # ----- layout -----
         # ----- layout (centered vertically) -----
         layers = {"CVE": 0, "CWE": 1, "CAPEC": 2, "T": 3, "D3-": 4}
         groups = {k: [] for k in layers}
@@ -1076,7 +1082,7 @@ class GraphViewer(tk.Tk):
 # === Entry point
 # ======================================================
 if __name__ == "__main__":
-    roadmaps = find_roadmap_jsons(".")
+    roadmaps = find_roadmap_jsons(BASE_DIR)
     if not roadmaps:
         print("❌ No roadmap JSONs found.")
         exit()

@@ -19,6 +19,8 @@ from bs4 import BeautifulSoup
 from collections import defaultdict
 import sys
 import os
+import logging
+from NLP_relationship_finder import link_nodes
 
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (cve-fetcher/1.0)"}
 
@@ -32,17 +34,17 @@ def fetch_cve_data(cve_id, timeout=15):
     try:
         resp = requests.get(api_url, timeout=timeout, headers=REQUEST_HEADERS)
     except Exception as e:
-        print(f"[WARN] Error contacting CVE API: {e}. Falling back to NVD.")
+        logging.error(f"[WARN] Error contacting CVE API: {e}. Falling back to NVD.")
         return fetch_from_nvd(cve_id)
 
     if resp.status_code != 200:
-        print(f"[WARN] CVE API returned {resp.status_code}. Falling back to NVD.")
+        logging.warn(f"CVE API returned {resp.status_code}. Falling back to NVD.")
         return fetch_from_nvd(cve_id)
 
     try:
         data = resp.json()
     except ValueError:
-        print("[WARN] CVE API returned invalid JSON. Falling back to NVD.")
+        logging.warn("CVE API returned invalid JSON. Falling back to NVD.")
         return fetch_from_nvd(cve_id)
 
     cna = data.get("containers", {}).get("cna", {})
@@ -298,11 +300,11 @@ def fetch_from_nvd(cve_id, timeout=20):
     try:
         resp = requests.get(nvd_url, timeout=timeout, headers=REQUEST_HEADERS)
     except Exception as e:
-        print(f"[ERROR] Error fetching NVD page: {e}")
+        logging.error(f"Error fetching NVD page: {e}")
         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
 
     if resp.status_code != 200:
-        print(f"[ERROR] NVD returned status {resp.status_code} for {cve_id}")
+        logging.error(f"NVD returned status {resp.status_code} for {cve_id}")
         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -317,10 +319,10 @@ def fetch_from_nvd(cve_id, timeout=20):
             title = sibling.strip(" -")
 
     # Description
-    desc = None
+    description = None
     desc_div = soup.find("p", {"data-testid": "vuln-description"})
     if desc_div:
-        desc = desc_div.get_text(strip=True)
+        description = desc_div.get_text(strip=True)
 
     # --- CVSS (robust multi-version detection, supports external scores like CISA-ADP) ---
     import re
@@ -482,10 +484,18 @@ def fetch_from_nvd(cve_id, timeout=20):
     tools = list(dict.fromkeys(tools))
     exploit_tools = list(dict.fromkeys(exploit_tools))
 
+    if not cwe:
+        try:
+            logging.info(f"No CWE links found for {cve_id}, inferring via NLP hybrid model...")
+            ranked = link_nodes(description, "CWE", limit=600)
+            cwe = [r[0].get("CWE_ID", "?") for r in ranked[:5]]
+        except Exception as e:
+            logging.warning(f"Hybrid inference failed for {cve_id}: {e}")
+
     return {
         "CVE_ID": cve_id,
         "Title": title,
-        "Description": desc,
+        "Description": description,
         "CVSS_Score": cvss_score_str,
         "Severity": severity,
         "Related_CWEs": cwe,
@@ -505,25 +515,3 @@ def _save_json(out, cve_id, folder="."):
     with open(fname, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
     return fname
-
-
-if __name__ == "__main__":
-    # Simple CLI: python cve_fetcher.py CVE-2024-9926 [--save folder]
-    if len(sys.argv) < 2:
-        print("Usage: python cve_fetcher.py CVE-ID [--save folder]")
-        sys.exit(1)
-
-    cve = sys.argv[1].strip()
-    save_folder = None
-    if len(sys.argv) >= 3 and sys.argv[2] == "--save":
-        if len(sys.argv) >= 4:
-            save_folder = sys.argv[3]
-        else:
-            save_folder = "."
-
-    result = fetch_cve_data(cve)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-
-    if save_folder is not None:
-        path = _save_json(result, cve, folder=save_folder)
-        print(f"[SAVED] {path}")

@@ -5,7 +5,11 @@ import sys
 import time
 from typing import Dict, Any
 import os
+import logging
 
+
+# --- SYSTEM PATH ---
+sys.path.append(os.path.dirname(__file__))
 # === Import retrievers ===
 from CVE_retrieve import fetch_cve_data
 from CWE_retrieve import fetch_cwe_data
@@ -13,9 +17,27 @@ from CAPEC_retrieve import fetch_capec_data
 from ATTACKDEFEND_retrieve import fetch_attack_data, fetch_defend_data
 from keyword_search import search_cwe
 from LLM import extract_keyword
-from CAPEC_from_ATTACK import get_capec_ids
+
+
+from NLP_relationship_finder import link_nodes
 
 #DEFINITIONS
+# --- LOGGING CONFIGURATION ---
+LOG_DIR = os.path.expanduser("~/.cache/cyberdata/logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+log_file = os.path.join(LOG_DIR, "roadmap_builder.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(log_file, mode='a', encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("roadmap")
+
 # === CVE LIMIT CONFIGURATION ===
 CVE_LIMIT = 5  # default value; can be changed by CLI flag
 
@@ -29,9 +51,6 @@ def is_keyword_or_text(user_input: str) -> str:
     if detected != "UNKNOWN":
         return "id"
 
-    # Simple heuristic:
-    # - If multiple words → it's text
-    # - Else → keyword
     if len(user_input.strip().split()) > 1:
         return "text"
     return "keyword"
@@ -75,13 +94,6 @@ def detect_type(identifier: str) -> str:
         return "CAPEC"
 
     return "UNKNOWN"
-
-
-def safe_call(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs)
-    except Exception as e:
-        return {"error": str(e)}
 
 
 # === Global visited registry ===
@@ -196,22 +208,31 @@ def build_recursive(identifier: str, result: Dict[str, Any], direction="down", u
 
     # === ATTACK: go ATTACK → DEFEND ===
     elif node_type == "ATTACK":
-        data = fetch_attack_data(id_upper)
+        # Fetch and store ATTACK data
+        data = cache["ATTACK"].get(id_upper) or fetch_attack_data(id_upper)
+        cache["ATTACK"][id_upper] = data
         result["Nodes"]["ATTACK"].append(data)
 
-        # attempt to find CAPECs that map to this ATT&CK id and traverse them upward -> downward
-        try:
-            capec_ids = get_capec_ids(id_upper) or []
-        except Exception as e:
-            # don't fail the whole traversal if CAPEC lookup errors
-            capec_ids = []
-            result["Notes"].append(f"CAPEC lookup failed for {id_upper}: {e}")
 
+        capec_ids = []
+        try:
+            logger.info(f"No explicit CAPEC links for {id_upper}, inferring via NLP model...")
+            ranked = link_nodes(data.get("Description", ""), "CAPEC", limit=600)
+            capec_ids = [r[0].get("CAPEC_ID") for r in ranked[:5]]
+            logger.info(f"Found {len(capec_ids)} inferred CAPECs for {id_upper}: {capec_ids}")
+        except Exception as e:
+            capec_ids = []
+            result["Notes"].append(f"CAPEC inference failed for {id_upper}: {e}")
+            logger.warning(f"CAPEC NLP inference failed for {id_upper}: {e}")
+
+        # Traverse discovered CAPECs upward → downward
         for capec in ensure_list(capec_ids):
             build_recursive(capec, result, direction="down", upward_only=True)
 
+        # 🔄 Continue to DEFEND nodes as before
         for defend in ensure_list(data.get("DEFEND")):
-            defend_data = fetch_defend_data(defend)
+            defend_data = cache["DEFEND"].get(defend) or fetch_defend_data(defend)
+            cache["DEFEND"][defend] = defend_data
             result["Nodes"]["DEFEND"].append(defend_data)
 
     # === DEFEND: go DEFEND → ATTACK ===
@@ -223,8 +244,8 @@ def build_recursive(identifier: str, result: Dict[str, Any], direction="down", u
             attack_data = fetch_attack_data(attack)
             result["Nodes"]["ATTACK"].append(attack_data)
 
-# === Main entry ===
 
+# === Main entry ===
 def handle_attack_input(attack_id: str) -> Dict[str, Any]:
     """Special case: when starting from ATT&CK ID, don't traverse subtechniques; only go ATTACK -> DEFEND, then CAPEC -> CWE -> CVE."""
     for key in visited:
@@ -237,7 +258,7 @@ def handle_attack_input(attack_id: str) -> Dict[str, Any]:
         "Notes": []
     }
 
-    print(f"\n[+] Building roadmap for {attack_id} (ATTACK mode)...")
+    logger.info(f"\n[+] Building roadmap for {attack_id} (ATTACK mode)...")
 
     # 1️⃣ Fetch ATTACK node itself
     attack_data = fetch_attack_data(attack_id)
@@ -253,8 +274,8 @@ def handle_attack_input(attack_id: str) -> Dict[str, Any]:
 
     # 3️⃣ Fetch CAPECs mapped to this ATTACK ID
     try:
-        capec_list = get_capec_ids(attack_id) or []
-        print(f"Found {len(capec_list)} CAPECs linked to {attack_id}: {capec_list}")
+        capec_list = link_nodes( result["Nodes"]["ATTACK"][0]["Description"],"CAPEC")
+        logger.info(f"Found {len(capec_list)} CAPECs linked to {attack_id}: {capec_list}")
     except Exception as e:
         capec_list = []
         result["Notes"].append(f"CAPEC lookup failed for {attack_id}: {e}")
@@ -285,24 +306,13 @@ def build_roadmap(identifier: str) -> Dict[str, Any]:
         "Notes": []
     }
 
-    print(f"\n[+] Building roadmap for {identifier} ({result['Detected_Type']}) ...")
+    logger.info(f"\n[+] Building roadmap for {identifier} ({result['Detected_Type']}) ...")
 
     # start traversal depending on type
     if result["Detected_Type"] == "DEFEND":
         build_recursive(identifier, result, direction="up")
     else:
         build_recursive(identifier, result, direction="down")
-
-    # # Deduplicate
-    # for key in result["Nodes"]:
-    #     unique, seen = [], set()
-    #     for node in result["Nodes"][key]:
-    #         safe_node = convert_sets(node)
-    #         node_str = json.dumps(safe_node, sort_keys=True) if isinstance(safe_node, dict) else str(safe_node)
-    #         if node_str not in seen:
-    #             seen.add(node_str)
-    #             unique.append(safe_node)
-    #     result["Nodes"][key] = unique
 
     for key in result["Nodes"]:
         merged = {}
@@ -333,38 +343,6 @@ def build_roadmap(identifier: str) -> Dict[str, Any]:
 
     return result
 
-# def handle_defend_input(defend_id: str) -> Dict[str, Any]:
-#     """Start from a DEFEND ID → retrieve all related ATT&CK techniques and traverse upward."""
-#     for key in visited:
-#         visited[key].clear()
-#
-#     result = {
-#         "Query": defend_id,
-#         "Detected_Type": "DEFEND",
-#         "Nodes": {"CVE": [], "CWE": [], "CAPEC": [], "ATTACK": [], "DEFEND": []},
-#         "Notes": []
-#     }
-#
-#     print(f"\n[+] Building roadmap for {defend_id} (DEFEND mode)...")
-#
-#     # 1️⃣ Fetch DEFEND node itself
-#     defend_data = fetch_defend_data(defend_id)
-#     result["Nodes"]["DEFEND"].append(defend_data)
-#     visited["DEFEND"].add(defend_id)
-#
-#     # 2️⃣ Retrieve related ATT&CK techniques
-#     related_attacks = ensure_list(defend_data.get("RELATED_ATTACKS", []))
-#     print(f"Found {len(related_attacks)} ATT&CK techniques linked to {defend_id}: {related_attacks}")
-#
-#     # 3️⃣ For each ATTACK, traverse upward using build_recursive()
-#     for attack_id in related_attacks:
-#         if attack_id in visited["ATTACK"]:
-#             continue
-#         build_recursive(attack_id, result, direction="up")
-#
-#     return result
-
-
 def handle_defend_input(defend_id: str) -> Dict[str, Any]:
     """Start from a DEFEND ID → retrieve all related ATT&CK techniques, then expand upward through CAPEC, CWE, CVE."""
     # Clear visited sets
@@ -378,7 +356,7 @@ def handle_defend_input(defend_id: str) -> Dict[str, Any]:
         "Notes": []
     }
 
-    print(f"\n[+] Building roadmap for {defend_id} (DEFEND mode)...")
+    logger.info(f"\n[+] Building roadmap for {defend_id} (DEFEND mode)...")
 
     # 1️⃣ DEFEND node
     defend_data = cache["DEFEND"].get(defend_id) or fetch_defend_data(defend_id)
@@ -388,7 +366,7 @@ def handle_defend_input(defend_id: str) -> Dict[str, Any]:
 
     # 2️⃣ ATTACK nodes mitigated by this defense
     related_attacks = ensure_list(defend_data.get("RELATED_ATTACKS", []))
-    print(f"Found {len(related_attacks)} ATT&CK techniques linked to {defend_id}: {related_attacks}")
+    logger.info(f"Found {len(related_attacks)} ATT&CK techniques linked to {defend_id}: {related_attacks}")
 
     for attack_id in related_attacks:
         if attack_id in visited["ATTACK"]:
@@ -401,10 +379,12 @@ def handle_defend_input(defend_id: str) -> Dict[str, Any]:
 
         # 3️⃣ CAPEC nodes mapped to this ATTACK
         try:
-            capec_list = get_capec_ids(attack_id) or []
+            ranked = link_nodes(attack_data.get("Description", ""), "CAPEC", limit=600)
+            capec_list = [r[0].get("CAPEC_ID") for r in ranked[:5]]
+            logger.info(f"Found {len(capec_list)} CAPECs linked to {attack_id}: {capec_list}")
         except Exception as e:
             capec_list = []
-            result["Notes"].append(f"CAPEC lookup failed for {attack_id}: {e}")
+            logger.warning(f"Hybrid CAPEC inference failed for {attack_id}: {e}")
 
         for capec_id in capec_list:
             if capec_id in visited["CAPEC"]:
@@ -479,7 +459,7 @@ def main():
         roadmap = build_roadmap(id)
         user_input = id
     else:
-        print("❌ Invalid input format.")
+        logger.error("❌ Invalid input format.")
         sys.exit(1)
 
     # === Prepare folder and filenames ===
@@ -579,10 +559,10 @@ def main():
         json.dump(unified, f, indent=2, ensure_ascii=False)
 
     # === Summary ===
-    print(f"\n✅ Unified roadmap saved to: {unified_file}")
+    logger.info(f"\n✅ Unified roadmap saved to: {unified_file}")
     for t, meta in per_type.items():
-        print(f"📘 {t}s file saved: {meta['path']}")
-    print(f"⏱ Completed in {time.time() - start_time:.1f}s")
+        logger.info(f"📘 {t}s file saved: {meta['path']}")
+    logger.info(f"⏱ Completed in {time.time() - start_time:.1f}s")
 
 
 

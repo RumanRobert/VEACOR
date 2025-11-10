@@ -1,9 +1,14 @@
 import requests
 import re
+import os
+import logging
+
+API_KEY = os.getenv("GOOGLE_API_KEY")
+CSE_ID = os.getenv("GOOGLE_CSE_ID")
 
 # Google Custom Search API details
-API_KEY = "AIzaSyAjOAtRNNedpyov7F6B0XDCiaK46wjT7Ks"   # Replace with your Google Cloud key
-CSE_ID = "012899561505164599335:tb0er0xsk_o"  # MITRE CWE Search Engine
+# API_KEY = "AIzaSyAjOAtRNNedpyov7F6B0XDCiaK46wjT7Ks"   # Replace with your Google Cloud key
+# CSE_ID = "012899561505164599335:tb0er0xsk_o"  # MITRE CWE Search Engine
 
 def search_cwe(keyword: str):
     """
@@ -39,12 +44,12 @@ def search_cwe(keyword: str):
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as e:
-        print(f"[!] API request failed: {e}")
+        logging.error(f"[!] API request failed: {e}")
         return None
 
     items = data.get("items", [])
     if not items:
-        print("[!] No results found.")
+        logging.warn("[!] No results found.")
         return None
 
     # Extract CWE IDs from URLs
@@ -56,7 +61,7 @@ def search_cwe(keyword: str):
             cwe_ids.append(f"CWE-{match.group(1)}")
 
     if not cwe_ids:
-        print("[!] No valid CWE IDs found in results.")
+        logging.warn("[!] No valid CWE IDs found in results.")
         return None
 
     # Limit output based on mode

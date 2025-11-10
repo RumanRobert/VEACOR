@@ -1,6 +1,8 @@
 import requests
 import json
+import logging
 from bs4 import BeautifulSoup
+from NLP_relationship_finder import link_nodes
 
 def get_section(soup, base_id, cwe_id):
     """
@@ -39,19 +41,45 @@ def fetch_cwe_data(cwe_id, visited=None):
     title_tag = soup.find("h2")
     title = title_tag.text.strip() if title_tag else None
 
-    # --- Description ---
+    # --- Description (prefer Extended Description if available, merge both) ---
+    description = ""
+
+    # --- Try Extended Description first ---
+    ext_desc_tag = soup.find("div", {"id": "Extended_Description"})
+    if ext_desc_tag:
+        indent_div = ext_desc_tag.find("div", class_="indent")
+        if indent_div:
+            ext_text = indent_div.get_text(" ", strip=True)
+        else:
+            text_parts = [
+                t for t in ext_desc_tag.stripped_strings
+                if not any(bad in t.lower() for bad in ["extended description", "toggleblocksoc"])
+            ]
+            ext_text = " ".join(text_parts).strip()
+        if ext_text:
+            description += ext_text.strip()
+
+    # --- Then (optionally) add short Description if available ---
     desc_tag = soup.find("div", {"id": "Description"})
-    description = None
     if desc_tag:
         indent_div = desc_tag.find("div", class_="indent")
-        if indent_div and indent_div.get_text(strip=True):
-            description = indent_div.get_text(strip=True)
+        if indent_div:
+            short_text = indent_div.get_text(" ", strip=True)
         else:
             text_parts = [
                 t for t in desc_tag.stripped_strings
                 if not any(bad in t.lower() for bad in ["description", "toggleblocksoc"])
             ]
-            description = " ".join(text_parts).strip() if text_parts else None
+            short_text = " ".join(text_parts).strip()
+        if short_text and short_text not in description:
+            # Append with spacing if Extended already exists
+            if description:
+                description += " " + short_text
+            else:
+                description = short_text
+
+    # Final cleanup
+    description = description.strip() or None
 
     # --- Related CAPECs ---
     capec_ids = []
@@ -212,13 +240,13 @@ def fetch_cwe_data(cwe_id, visited=None):
                         txt = elem.get_text(" ", strip=True)
                         if txt and not any(x in txt for x in ["Strategy:", "Effectiveness:"]):
                             description_parts.append(txt)
-                    description = " ".join(description_parts).strip() or "-"
+                    mitigation_description = " ".join(description_parts).strip() or "-"
 
                     potential_mitigations.append({
                         "Phase": phase or "-",
                         "Strategy": strategy or "-",
                         "Effectiveness": effectiveness or "-",
-                        "Description": description
+                        "Description": mitigation_description
                     })
 
     # --- Modes of Introduction ---
@@ -268,6 +296,23 @@ def fetch_cwe_data(cwe_id, visited=None):
                 if txt:
                     applicable_platforms["Other"].append(txt)
 
+    if not capec_ids:
+        try:
+            logging.info(f"No CAPEC links found for {cwe_id}, inferring via NLP hybrid model...")
+            ranked = link_nodes(description, "CAPEC",  limit=600)
+            capec_ids = [r[0].get("CAPEC_ID", "?") for r in ranked[:5]]
+        except Exception as e:
+            logging.warning(f"Hybrid inference failed for {cwe_id}: {e}")
+
+    if not related_cves:
+        try:
+            logging.info(f"No CVE links found for {cwe_id}, inferring via NLP hybrid model...")
+            ranked = link_nodes(description, "CVE", limit=300)
+            related_cves = [r[0].get("CVE_ID", "?") for r in ranked[:5]]
+        except Exception as e:
+            logging.warning(f"Hybrid inference failed for {cwe_id}: {e}")
+
+
     # --- Return structured result ---
     return {
         "CWE_ID": cwe_id,
@@ -289,7 +334,3 @@ def fetch_cwe_data(cwe_id, visited=None):
         "Source": base_url,
     }
 
-
-if __name__ == "__main__":
-    data = fetch_cwe_data("CWE-79")
-    print(json.dumps(data, indent=2, ensure_ascii=False))

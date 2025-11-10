@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 import spacy
 from sentence_transformers import SentenceTransformer
 from keybert import KeyBERT
@@ -28,7 +29,7 @@ def normalize(word: str) -> str:
     if not word:
         return ""
     w = word.lower().strip()
-    if w in {"log", "logs", "logged", "logging", "logfile", "logfiles", "loggable"}:
+    if w in LOG_VARIANTS:
         return "logging"
     return w
 
@@ -93,17 +94,3 @@ def extract_keyword(text: str) -> str:
     # fallback to most frequent meaningful word
     chosen = best_word if best_word else freq.most_common(1)[0][0]
     return normalize(chosen)
-
-if __name__ == "__main__":
-    sample = (
-        "When security-critical events are not logged properly, such as a failed login attempt, "
-        "this can make malicious behavior more difficult to detect and may hinder forensic analysis after an attack succeeds.\n\n"
-        "As organizations adopt cloud storage resources, these technologies often require configuration changes to enable detailed logging information, "
-        "since detailed logging can incur additional costs. This could lead to telemetry gaps in critical audit logs. For example, in Azure, the default value for logging is disabled."
-    )
-
-    # quick interactive demo: replace sample with input(...) to run manually
-    text = input("Enter text: ").strip()
-    #text = sample
-    kw = extract_keyword(text)
-    print(f"\n🔍 Top Keyword: {kw}")

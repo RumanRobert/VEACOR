@@ -343,7 +343,3 @@ def fetch_defend_data(d3_id: str):
             result["Title"] = None
 
     return result
-
-if __name__ == "__main__":
-    data = fetch_attack_data("T1509")
-    print(json.dumps(data, indent=2, ensure_ascii=False))

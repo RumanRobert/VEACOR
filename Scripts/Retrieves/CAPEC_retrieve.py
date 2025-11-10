@@ -1,7 +1,9 @@
 import requests
 import re
 import json
+import logging
 from bs4 import BeautifulSoup
+from NLP_relationship_finder import link_nodes
 
 def fetch_capec_data(capec_id):
     """
@@ -292,6 +294,21 @@ def fetch_capec_data(capec_id):
                 break
             example_instances.append(text)
 
+    if not related_cwes:
+        try:
+            logging.info(f"No CWE links found for {capec_id}, inferring via NLP hybrid model...")
+            ranked = link_nodes(description, "CWE", limit=500)
+            related_cwes = [r[0].get("CWE_ID", "?") for r in ranked[:5]]
+        except Exception as e:
+            logging.warning(f"Hybrid inference failed for {capec_id}: {e}")
+    elif not mitre_attacks:
+        try:
+            logging.info(f"No ATT&CK links found for {capec_id}, inferring via NLP hybrid model...")
+            ranked = link_nodes(description, "ATTACK", limit=300)
+            mitre_attacks = [r[0].get("ATTACK_ID", "?") for r in ranked[:5]]
+        except Exception as e:
+            logging.warning(f"Hybrid inference failed for {capec_id}: {e}")
+
 
     return {
         "CAPEC_ID": capec_id,
@@ -311,7 +328,3 @@ def fetch_capec_data(capec_id):
         "Related_MITRE_ATT&CK": mitre_attacks,
         "Source_Page": base_url
     }
-
-if __name__ == "__main__":
-    data = fetch_capec_data("CAPEC-1")
-    print(json.dumps(data, indent=2, ensure_ascii=False))
