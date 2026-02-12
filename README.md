@@ -1,4 +1,4 @@
-# 🧠 Cybersecurity Relationship Mapping Tool
+# 🧠 VEACOR - A Multi-Source Vulnerability Exposure and Attack Correlation Framework for Automated Roadmap Generation
 
 This project automates the discovery, linking, and visualization of relationships between **MITRE cybersecurity datasets** — including **CWE**, **CVE**, **CAPEC**, **ATT&CK**, and **D3FEND**.  
 Using **natural language processing (NLP)**, **semantic similarity models**, and **automated data retrieval**, it provides an intelligent way to understand how vulnerabilities, weaknesses, and attack patterns interconnect.
