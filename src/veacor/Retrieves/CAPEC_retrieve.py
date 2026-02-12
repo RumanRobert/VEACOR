@@ -3,7 +3,7 @@ import re
 import json
 import logging
 from bs4 import BeautifulSoup
-from rag_roadmap.Retrieves.NLP_relationship_finder import link_nodes, GLOBAL_MATCHER
+from veacor.Retrieves.NLP_relationship_finder import link_nodes, GLOBAL_MATCHER
 
 def fetch_capec_data(capec_id):
     """

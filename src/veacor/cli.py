@@ -1,23 +1,23 @@
 import argparse
-from rag_roadmap.roadmap_builder import run
+from veacor.roadmap_builder import run
 
 
 def main():
     example_text = """
 Examples:
 
-  CVE      → gvrm CVE-2023-4412
-  CWE      → gvrm CWE-78
-  CAPEC    → gvrm CAPEC-100
-  ATT&CK   → gvrm T1059
-  D3FEND   → gvrm D3-DAE
-  CPE      → gvrm cpe:2.3:a:apache:http_server:2.4.49
-  Product  → gvrm Microsoft IIS 3.0
+  CVE      → veacorg CVE-2023-4412
+  CWE      → veacorg CWE-78
+  CAPEC    → veacorg CAPEC-100
+  ATT&CK   → veacorg T1059
+  D3FEND   → veacorg D3-DAE
+  CPE      → veacorg cpe:2.3:a:apache:http_server:2.4.49
+  Product  → veacorg Microsoft IIS 3.0
 
 
 Modes:
-  gvrm CVE-2023-4412 --mode agg   --- changes the limit of nodes to 20 (DEFAULT is 5)
-  gvrm CWE-78 --mode xtrm         --- removes limit set to the number of nodes
+  veacorg CVE-2023-4412 --mode agg   --- changes the limit of nodes to 20 (DEFAULT is 5)
+  veacorg CWE-78 --mode xtrm         --- removes limit set to the number of nodes
 """
 
     parser = argparse.ArgumentParser(

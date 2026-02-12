@@ -1,0 +1,3 @@
+[console_scripts]
+veacord = veacor.Visualize:main
+veacorg = veacor.cli:main

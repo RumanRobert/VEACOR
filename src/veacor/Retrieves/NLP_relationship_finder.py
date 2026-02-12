@@ -19,7 +19,7 @@ import time
 import json
 import numpy as np
 from sentence_transformers import util, SentenceTransformer
-from rag_roadmap.Retrieves.text_cleaning import remove_citations_and_urls
+from veacor.Retrieves.text_cleaning import remove_citations_and_urls
 import hashlib
 
 def _to_json_safe(obj):

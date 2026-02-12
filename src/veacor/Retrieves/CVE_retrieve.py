@@ -21,7 +21,7 @@ import sys
 import os
 import logging
 import re
-from rag_roadmap.Retrieves.NLP_relationship_finder import link_nodes, GLOBAL_MATCHER
+from veacor.Retrieves.NLP_relationship_finder import link_nodes, GLOBAL_MATCHER
 
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (cve-fetcher/1.0)"}
 

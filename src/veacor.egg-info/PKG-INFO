@@ -1,5 +1,5 @@
 Metadata-Version: 2.4
-Name: rag-roadmap
+Name: VEACOR
 Version: 0.1.0
 Summary: Automatic cyber roadmap builder (CPE/CVE/CWE/CAPEC/ATT&CK/D3FEND).
 Requires-Python: >=3.10

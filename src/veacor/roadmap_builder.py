@@ -47,25 +47,25 @@ def lazy_imports():
     global fetch_attack_data, fetch_defend_data, link_nodes
     start = time.time()
     print("Importing NLP...")
-    from rag_roadmap.Retrieves.NLP_relationship_finder import link_nodes
+    from veacor.Retrieves.NLP_relationship_finder import link_nodes
     print("NLP import:", time.time() - start)
     start = time.time()
     print("Importing CPE...")
-    from rag_roadmap.Retrieves.CPE_retrieve import fetch_cpe_data
+    from veacor.Retrieves.CPE_retrieve import fetch_cpe_data
     print("Importing CVE...")
-    from rag_roadmap.Retrieves.CVE_retrieve import fetch_cve_data
+    from veacor.Retrieves.CVE_retrieve import fetch_cve_data
     print("CVE import:", time.time() - start)
     start = time.time()
     print("Importing CWE...")
-    from rag_roadmap.Retrieves.CWE_retrieve import fetch_cwe_data
+    from veacor.Retrieves.CWE_retrieve import fetch_cwe_data
     print("CWE import:", time.time() - start)
     start = time.time()
     print("Importing CAPEC...")
-    from rag_roadmap.Retrieves.CAPEC_retrieve import fetch_capec_data
+    from veacor.Retrieves.CAPEC_retrieve import fetch_capec_data
     print("CAPEC import:", time.time() - start)
     start = time.time()
     print("Importing ATTACK/DEFEND...")
-    from rag_roadmap.Retrieves.ATTACKDEFEND_retrieve import fetch_attack_data, fetch_defend_data
+    from veacor.Retrieves.ATTACKDEFEND_retrieve import fetch_attack_data, fetch_defend_data
     print("ATTACK/DEFEND import:", time.time() - start)
 
 #DEFINITIONS
@@ -669,7 +669,6 @@ def run(user_input: str, mode: str = "default") -> str:
 
     from pathlib import Path
 
-    # Project root (src/rag_roadmap/roadmap_builder.py → go up 2 levels)
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
     OUTPUT_DIR = PROJECT_ROOT / "outputs"
 
@@ -677,7 +676,7 @@ def run(user_input: str, mode: str = "default") -> str:
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     # Save unified roadmap in outputs folder
-    unified_file = OUTPUT_DIR / f"roadmap_{base_name}.json"
+    unified_file = RUN_FOLDER / f"roadmap_{base_name}.json"
 
     with unified_file.open("w", encoding="utf-8") as f:
         json.dump(unified, f, indent=2, ensure_ascii=False)
@@ -689,7 +688,7 @@ def run(user_input: str, mode: str = "default") -> str:
 
     # GUI is optional; do not hard-fail CLI if GUI fails
     try:
-        from rag_roadmap.Visualize import run_app
+        from veacor.Visualize import run_app
         run_app()
     except Exception as e:
         logger.warning("Visualizer could not be started: %s", e)
@@ -699,5 +698,5 @@ def run(user_input: str, mode: str = "default") -> str:
 
 
 if __name__ == "__main__":
-    from rag_roadmap.cli import main
+    from veacor.cli import main
     raise SystemExit(main())
