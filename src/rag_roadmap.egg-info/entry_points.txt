@@ -1,0 +1,3 @@
+[console_scripts]
+gvrm = rag_roadmap.cli:main
+vvrm = rag_roadmap.Visualize:main

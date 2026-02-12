@@ -1,0 +1,8 @@
+requests
+beautifulsoup4
+sentence-transformers
+numpy
+keybert
+spacy
+dash
+dash-cytoscape

@@ -1,0 +1,177 @@
+Metadata-Version: 2.4
+Name: rag-roadmap
+Version: 0.1.0
+Summary: Automatic cyber roadmap builder (CPE/CVE/CWE/CAPEC/ATT&CK/D3FEND).
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: requests
+Requires-Dist: beautifulsoup4
+Requires-Dist: sentence-transformers
+Requires-Dist: numpy
+Requires-Dist: keybert
+Requires-Dist: spacy
+Requires-Dist: dash
+Requires-Dist: dash-cytoscape
+
+# 🧠 Cybersecurity Relationship Mapping Tool
+
+This project automates the discovery, linking, and visualization of relationships between **MITRE cybersecurity datasets** — including **CWE**, **CVE**, **CAPEC**, **ATT&CK**, and **D3FEND**.  
+Using **natural language processing (NLP)**, **semantic similarity models**, and **automated data retrieval**, it provides an intelligent way to understand how vulnerabilities, weaknesses, and attack patterns interconnect.
+
+---
+
+## 🗂️ Project Structure
+
+```bash
+📦 Cybersecurity-Roadmap-Tool/
+│
+├── Scripts/
+│   ├── Retrieves/
+│   │   ├── CAPEC_retrieve.py          # Fetches CAPEC data and relationships
+│   │   ├── CWE_retrieve.py            # Retrieves CWE entries and metadata
+│   │   ├── CVE_retrieve.py            # Retrieves CVE data from NVD
+│   │   ├── ATTACKDEFEND_retrieve.py   # Fetches ATT&CK and D3FEND technique data
+│   │   ├── NLP_relationship_finder.py # Hybrid NLP model for cross-dataset linking
+│   │   ├── keyword_search.py          # Google CSE keyword-based CWE search
+│   │   ├── LLM.py                     # Keyword extraction and text preprocessing
+│   │   └── main.py                    # Core logic that builds full roadmap
+│   │
+│   ├── Visualize.py                   # Generates interactive network graph
+│   └── tests/
+│       └── test_roadmap.py            # Unit tests for roadmap logic
+│
+├── UML.png                            # UML diagram of class and function structure
+├── requirements.txt                   # Python dependencies
+├── setup.sh                           # Linux/macOS setup script
+├── setup.bat                          # Windows setup script
+└── README.md
+```
+
+---
+
+## 🧩 UML Diagram
+
+Below is an overview of how classes and functions interact within the project:
+
+![UML Diagram](./UML.svg)
+
+---
+
+## 🪂 1️⃣ Downloading the Project
+
+Clone the repository from GitHub:
+
+```bash
+git clone https://github.com/RumanRobert/AutomaticGenerationOfAttackGraphs.git
+cd AutomaticGenerationOfAttackGraphs
+```
+
+---
+
+## ⚙️ 2️⃣ Installing Dependencies
+
+Make sure you have **Python 3.10+** and **Git** installed.
+
+Then, install all required dependencies automatically by running the setup script:
+
+```bash
+bash setup.sh
+```
+
+> 🪟 **Windows Users:**  
+> If you don’t have Git Bash, you can either:
+> - Double-click `setup.bat`, **or**
+> - Run manually:
+>   ```bash
+>   pip install -r requirements.txt
+>   ```
+
+The setup installs all needed libraries such as:
+- `requests`, `beautifulsoup4`, `spacy`, `sentence-transformers`, `keybert`
+- `scikit-learn`, `torch`, `nltk`, `numpy`
+- plus various helper utilities used for NLP and visualization.
+
+---
+
+## 🧩 3️⃣ Setup Process
+
+The `setup.sh` (or `setup.bat`) script will:
+- Create a virtual environment (`venv`)
+- Install dependencies from `requirements.txt`
+- Download required NLP models (`en_core_web_sm`, `wordnet`)
+- Prepare caches for hybrid embedding comparisons
+
+You only need to run this once.
+
+> 💡 **Note:**  
+> The needed packages for the program should be able to be installed using the commands from the `requirements.txt`.  
+> Having **Notepad++** installed enhances the experience — Windows Notepad cannot move the cursor when clicking a node in the roadmap graph.  
+> As a result, Notepad only opens the `.json` file, instead of opening it **and jumping to the clicked ID**.
+
+---
+
+## 🚀 4️⃣ Running the Tool
+
+Run the main program using:
+
+```bash
+python Scripts/main.py
+```
+
+This executes the complete relationship-building pipeline:
+1. Retrieves vulnerability and attack pattern data from MITRE sources  
+2. Applies NLP and semantic similarity to find cross-references  
+3. Builds a relationship graph (CVE ↔ CWE ↔ CAPEC ↔ ATT&CK ↔ D3FEND)  
+4. Optionally visualizes them through `Visualize.py`
+
+---
+
+## 🧭 5️⃣ Using the Program
+
+Once running, you can:
+- Search for vulnerabilities by keyword via `keyword_search.py`
+- Use NLP-powered hybrid similarity (via `NLP_relationship_finder.py`)
+- Automatically link related CWE, CVE, CAPEC, ATT&CK, and D3FEND entries
+- View or export results as structured JSON data and interactive graphs
+
+### 🪶 Interaction Features
+- **Double-clicking a node** opens its location in the corresponding `.json` file.  
+  This file contains a more detailed description of the selected item.
+- In the project folder, a **demonstration video** is included, showing the **basic use** of the program and visualization.
+
+---
+
+## 🧱 Example Workflow
+
+```bash
+python Scripts/main.py
+```
+
+➡ Retrieves a given **CWE**  
+➡ Maps it to related **CAPEC** and **CVE** entries  
+➡ Identifies **ATT&CK** and **D3FEND** techniques  
+➡ Outputs and visualizes the complete relationship network.
+
+---
+
+## 🧰 Developer Notes
+
+### 🧪 Running Tests
+You can run the full test suite using **pytest**:
+```bash
+pytest Scripts/tests/test_roadmap.py -v
+```
+This validates that data retrieval, NLP matching, and relationship mapping all work correctly.
+
+### 🔁 Updating Dependencies
+If you modify the project and add new imports, regenerate your dependency list with:
+```bash
+pip freeze > requirements.txt
+```
+
+### 🧹 Resetting the Environment
+To start fresh:
+```bash
+rm -rf venv
+bash setup.sh
+```
