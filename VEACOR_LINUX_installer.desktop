@@ -3,6 +3,6 @@ Type=Application
 Name=VEACOR Installer
 Comment=Install VEACOR dependencies and CLI
 Terminal=true
-Exec=sh -c 'cd "$(dirname "%k")" && ./VEACOR_installer.sh'
+Exec=sh -c 'cd "$(dirname "%k")" && python3 VEACOR_installer.py'
 Icon=utilities-terminal
 Categories=Utility;

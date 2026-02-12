@@ -42,7 +42,7 @@ __pycache__/
 outputs/
 roadmap_*_output/
 
-
+*.egg-info/
 # ===============================
 # Any local build/lib folders
 # ===============================
