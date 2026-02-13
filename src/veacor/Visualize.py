@@ -465,7 +465,7 @@ stylesheet = [
 # -------------------------------------------------------------------
 roadmaps = find_roadmap_jsons()
 
-app = dash.Dash("MITRE Attack-Defense Explorer")
+app = dash.Dash("VEACOR")
 
 app.layout = html.Div(
     style={"backgroundColor": "#111111", "color": "white", "height": "100vh"},
@@ -692,8 +692,6 @@ def update_stylesheet(selected, elements):
 
 
 def run_app():
-    print("Outputs dir:", OUTPUT_DIR)
-    print("Found:", find_roadmap_jsons)
     def open_browser():
         time.sleep(1)
         webbrowser.open("http://127.0.0.1:8050")

@@ -12,7 +12,7 @@ Examples:
   ATT&CK   → veacorg T1059
   D3FEND   → veacorg D3-DAE
   CPE      → veacorg cpe:2.3:a:apache:http_server:2.4.49
-  Product  → veacorg Microsoft IIS 3.0
+  Product  → veacorg -p Microsoft IIS 3.0
 
 
 Modes:

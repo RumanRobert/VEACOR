@@ -518,10 +518,6 @@ def build_roadmap(identifier: str) -> Dict[str, Any]:
 
 
 def run(user_input: str, mode: str = "default") -> str:
-    """
-    Library entry point: build the roadmap for a given query.
-    Returns the path of the unified JSON file.
-    """
     global FETCH_LIMIT
 
     # mode -> CVE limit

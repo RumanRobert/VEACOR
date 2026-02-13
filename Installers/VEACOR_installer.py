@@ -19,7 +19,7 @@ def run(cmd, cwd=None):
     subprocess.check_call(cmd, cwd=cwd)
 
 def main():
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parent.parent
     os.chdir(root)
 
     # 1) Create venv
@@ -58,12 +58,6 @@ def main():
 
     print("\n[✓] Setup complete.")
 
-    # Keep window open if user double-clicked a wrapper
-    if system == "windows":
-        try:
-            input("Press Enter to close... ")
-        except EOFError:
-            pass
 
 if __name__ == "__main__":
     main()
