@@ -19,7 +19,7 @@ import json
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from rag_roadmap.Retrieves.NLP_relationship_finder import link_nodes, GLOBAL_MATCHER
+from veacor.Retrieves.NLP_relationship_finder import link_nodes, GLOBAL_MATCHER
 import logging
 
 BASE_URL = "https://d3fend.mitre.org/"
