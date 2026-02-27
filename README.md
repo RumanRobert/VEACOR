@@ -1,162 +1,247 @@
-# 🧠 VEACOR - A Multi-Source Vulnerability Exposure and Attack Correlation Framework for Automated Roadmap Generation
+# VEACOR
+## Vulnerability & Exploit Automated Correlation and Ontology Roadmap Framework
 
-This project automates the discovery, linking, and visualization of relationships between **MITRE cybersecurity datasets** — including **CWE**, **CVE**, **CAPEC**, **ATT&CK**, and **D3FEND**.  
-Using **natural language processing (NLP)**, **semantic similarity models**, and **automated data retrieval**, it provides an intelligent way to understand how vulnerabilities, weaknesses, and attack patterns interconnect.
+VEACOR is a professional cybersecurity framework designed to automatically generate structured attack graphs from a single input entity.  
+It correlates data across major MITRE and NVD knowledge bases, linking vulnerabilities, weaknesses, attack patterns, adversarial techniques, and defensive controls into a unified, multi-layer roadmap.
 
----
+The framework is intended for:
 
-## 🗂️ Project Structure
-
-```bash
-📦 Cybersecurity-Roadmap-Tool/
-│
-├── Scripts/
-│   ├── Retrieves/
-│   │   ├── CAPEC_retrieve.py          # Fetches CAPEC data and relationships
-│   │   ├── CWE_retrieve.py            # Retrieves CWE entries and metadata
-│   │   ├── CVE_retrieve.py            # Retrieves CVE data from NVD
-│   │   ├── ATTACKDEFEND_retrieve.py   # Fetches ATT&CK and D3FEND technique data
-│   │   ├── NLP_relationship_finder.py # Hybrid NLP model for cross-dataset linking
-│   │   ├── keyword_search.py          # Google CSE keyword-based CWE search
-│   │   ├── LLM.py                     # Keyword extraction and text preprocessing
-│   │   └── main.py                    # Core logic that builds full roadmap
-│   │
-│   ├── Visualize.py                   # Generates interactive network graph
-│   └── tests/
-│       └── test_roadmap.py            # Unit tests for roadmap logic
-│
-├── UML.png                            # UML diagram of class and function structure
-├── requirements.txt                   # Python dependencies
-├── setup.sh                           # Linux/macOS setup script
-├── setup.bat                          # Windows setup script
-└── README.md
-```
+- Penetration testers  
+- Red team operators  
+- Threat intelligence analysts  
+- Security researchers  
+- Blue team and defensive architects  
 
 ---
 
-## 🧩 UML Diagram
+# 1. Overview
 
-Below is an overview of how classes and functions interact within the project:
+VEACOR enables automated correlation across the following ecosystems:
 
-![UML Diagram](./UML.svg)
+- CPE (Common Platform Enumeration)
+- CVE (Common Vulnerabilities and Exposures)
+- CWE (Common Weakness Enumeration)
+- CAPEC (Common Attack Pattern Enumeration and Classification)
+- MITRE ATT&CK
+- MITRE D3FEND
 
----
+The system constructs relationship chains such as:
 
-## 🪂 1️⃣ Downloading the Project
+CPE → CVE → CWE → CAPEC → ATT&CK → D3FEND
 
-Clone the repository from GitHub:
+Relationships are derived using:
 
-```bash
-git clone https://github.com/RumanRobert/AutomaticGenerationOfAttackGraphs.git
-cd AutomaticGenerationOfAttackGraphs
-```
+- Official structured mappings (MITRE / NVD references)
+- NLP-based semantic similarity inference
 
----
-
-## ⚙️ 2️⃣ Installing Dependencies
-
-Make sure you have **Python 3.10+** and **Git** installed.
-
-Then, install all required dependencies automatically by running the setup script:
-
-```bash
-bash setup.sh
-```
-
-> 🪟 **Windows Users:**  
-> If you don’t have Git Bash, you can either:
-> - Double-click `setup.bat`, **or**
-> - Run manually:
->   ```bash
->   pip install -r requirements.txt
->   ```
-
-The setup installs all needed libraries such as:
-- `requests`, `beautifulsoup4`, `spacy`, `sentence-transformers`, `keybert`
-- `scikit-learn`, `torch`, `nltk`, `numpy`
-- plus various helper utilities used for NLP and visualization.
+The output is a structured JSON attack graph and an interactive visualization.
 
 ---
 
-## 🧩 3️⃣ Setup Process
+# 2. Key Capabilities
 
-The `setup.sh` (or `setup.bat`) script will:
-- Create a virtual environment (`venv`)
-- Install dependencies from `requirements.txt`
-- Download required NLP models (`en_core_web_sm`, `wordnet`)
-- Prepare caches for hybrid embedding comparisons
-
-You only need to run this once.
-
-> 💡 **Note:**  
-> The needed packages for the program should be able to be installed using the commands from the `requirements.txt`.  
-> Having **Notepad++** installed enhances the experience — Windows Notepad cannot move the cursor when clicking a node in the roadmap graph.  
-> As a result, Notepad only opens the `.json` file, instead of opening it **and jumping to the clicked ID**.
+- Automated cross-framework intelligence correlation
+- Hybrid structured + semantic linking
+- Multi-layer attack path generation
+- Offensive-to-defensive knowledge mapping
+- Configurable graph expansion modes
+- Interactive visualization with node-level drill-down
+- Reproducible roadmap generation from minimal input
 
 ---
 
-## 🚀 4️⃣ Running the Tool
+# 3. Architecture
 
-Run the main program using:
+## Core Components
 
-```bash
-python Scripts/main.py
-```
+veacor/
+- cli.py                         — Command-line entry point
+- roadmap_builder.py             — Graph orchestration and expansion engine
+- Visualize.py                   — Interactive Dash visualization
+- Retrieves/
+    - CPE_retrieve.py
+    - CVE_retrieve.py
+    - CWE_retrieve.py
+    - CAPEC_retrieve.py
+    - ATTACKDEFEND_retrieve.py
+    - NLP_relationship_finder.py
+    - text_cleaning.py
 
-This executes the complete relationship-building pipeline:
-1. Retrieves vulnerability and attack pattern data from MITRE sources  
-2. Applies NLP and semantic similarity to find cross-references  
-3. Builds a relationship graph (CVE ↔ CWE ↔ CAPEC ↔ ATT&CK ↔ D3FEND)  
-4. Optionally visualizes them through `Visualize.py`
+### Processing Flow
 
----
-
-## 🧭 5️⃣ Using the Program
-
-Once running, you can:
-- Search for vulnerabilities by keyword via `keyword_search.py`
-- Use NLP-powered hybrid similarity (via `NLP_relationship_finder.py`)
-- Automatically link related CWE, CVE, CAPEC, ATT&CK, and D3FEND entries
-- View or export results as structured JSON data and interactive graphs
-
-### 🪶 Interaction Features
-- **Double-clicking a node** opens its location in the corresponding `.json` file.  
-  This file contains a more detailed description of the selected item.
-- In the project folder, a **demonstration video** is included, showing the **basic use** of the program and visualization.
+1. User provides a single identifier or product keyword.
+2. Data is retrieved from authoritative sources.
+3. Structured relationships are extracted.
+4. NLP similarity is applied for cross-dataset inference.
+5. Multi-layer roadmap is constructed.
+6. Structured JSON files are generated.
+7. Interactive visualization is launched.
 
 ---
 
-## 🧱 Example Workflow
+# 4. Installation
 
-```bash
-python Scripts/main.py
-```
+## Requirements
 
-➡ Retrieves a given **CWE**  
-➡ Maps it to related **CAPEC** and **CVE** entries  
-➡ Identifies **ATT&CK** and **D3FEND** techniques  
-➡ Outputs and visualizes the complete relationship network.
+- Python 3.10+
+- Internet connection (for data retrieval and model download)
+
+## Setup
+
+Create and activate a virtual environment:
+
+Linux / macOS:
+python3 -m venv .venv
+source .venv/bin/activate
+
+Windows:
+python -m venv .venv
+.\.venv\Scripts\activate
+
+Install dependencies:
+
+pip install requests beautifulsoup4 sentence-transformers scikit-learn torch nltk dash dash-cytoscape networkx numpy
 
 ---
 
-## 🧰 Developer Notes
+# 5. Usage
 
-### 🧪 Running Tests
-You can run the full test suite using **pytest**:
-```bash
-pytest Scripts/tests/test_roadmap.py -v
-```
-This validates that data retrieval, NLP matching, and relationship mapping all work correctly.
+VEACOR is executed via CLI:
 
-### 🔁 Updating Dependencies
-If you modify the project and add new imports, regenerate your dependency list with:
-```bash
-pip freeze > requirements.txt
-```
+veacorg <INPUT>
 
-### 🧹 Resetting the Environment
-To start fresh:
-```bash
-rm -rf venv
-bash setup.sh
-```
+## Supported Inputs
+
+CVE:
+veacorg CVE-2023-4412
+
+CWE:
+veacorg CWE-78
+
+CAPEC:
+veacorg CAPEC-100
+
+MITRE ATT&CK:
+veacorg T1059
+
+MITRE D3FEND:
+veacorg D3-DAE
+
+CPE 2.3:
+veacorg cpe:2.3:a:apache:http_server:2.4.49
+
+Product keyword search:
+veacorg -p "Microsoft IIS 3.0"
+
+Description-based resolution:
+veacorg -desc CWE
+
+---
+
+# 6. Expansion Modes
+
+Graph expansion size can be controlled using:
+
+--mode default   (TOP_K = 5)  
+--mode agg       (TOP_K = 20)  
+--mode xtrm      (Unlimited expansion)
+
+Example:
+
+veacorg CVE-2023-4412 --mode agg
+
+---
+
+# 7. Output Structure
+
+Each execution generates:
+
+outputs/
+└── roadmap_<INPUT>_output/
+    ├── roadmap_<INPUT>.json
+    ├── CPEs.json
+    ├── CVEs.json
+    ├── CWEs.json
+    ├── CAPECs.json
+    ├── ATTACKs.json
+    └── DEFENDs.json
+
+The unified roadmap JSON contains:
+
+- Nodes
+- Edges
+- Relationship types (Structured / NLP Link)
+- File references to detailed entity data
+
+---
+
+# 8. Visualization
+
+VEACOR includes a Dash-based interactive network interface.
+
+Features:
+
+- Entity-type color grouping
+- Node metadata side panel
+- Double-click to open detailed JSON record
+- Neighbor highlighting for local analysis
+- Deterministic layout for reproducibility
+
+---
+
+# 9. NLP Correlation Engine
+
+The semantic linking engine combines:
+
+- SentenceTransformer embeddings (multi-qa-mpnet-base-dot-v1)
+- Keyword overlap scoring (Jaccard similarity)
+- Title similarity scoring
+- Length normalization scaling
+
+Default configuration:
+
+EMBED_MODEL_NAME = sentence-transformers/multi-qa-mpnet-base-dot-v1  
+MIN_SCORE = 0.85  
+TOP_K = 5  
+
+Caching is implemented for:
+
+- Dataset embeddings
+- Preprocessed descriptions
+- Previously computed similarity queries
+
+---
+
+# 10. Practical Applications
+
+VEACOR can support:
+
+- Attack surface analysis
+- Vulnerability chaining research
+- Red team scenario construction
+- Defensive control mapping
+- Threat modeling exercises
+- Security research and reporting
+
+---
+
+# 11. Limitations
+
+- Requires internet connectivity during execution
+- NLP-based links are probabilistic, not authoritative mappings
+- Extreme expansion mode may generate large graphs
+- Performance depends on dataset size and threshold configuration
+
+---
+
+# 12. Research Context
+
+This framework was developed as part of a diploma thesis on automated attack graph generation.  
+It demonstrates how structured CTI and semantic similarity modeling can be combined to automate multi-layer adversarial roadmap construction.
+
+---
+
+# 13. License
+
+Academic and research use.  
+For commercial use or redistribution, consult the project author.
