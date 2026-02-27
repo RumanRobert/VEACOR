@@ -306,7 +306,7 @@ def fetch_cwe_data(cwe_id, visited=None):
 
     try:
         logging.info(f"Inferring CAPEC links for {cwe_id} via NLP hybrid model ")
-        ranked = link_nodes(description, "CWE", "CAPEC",  limit=600, top_k = 10, matcher = GLOBAL_MATCHER)
+        ranked = link_nodes(description, "CWE", "CAPEC",  limit=600, matcher = GLOBAL_MATCHER)
         capec_ids.extend([
             r["item"].get("CAPEC_ID", "?")
             for r in ranked
@@ -315,15 +315,15 @@ def fetch_cwe_data(cwe_id, visited=None):
     except Exception as e:
         logging.warning(f"Hybrid inference failed for {cwe_id}: {e}")
 
-    # try:
-    #     logging.info(f"Inferring CVE links for {cwe_id} via NLP hybrid model ")
-    #     ranked = link_nodes(description, "CWE", "CVE", limit=300, top_k = 10, matcher= GLOBAL_MATCHER)
-    #     related_cves.extend([
-    #         r["item"].get("CVE_ID", "?")
-    #         for r in ranked
-    #     ])
-    # except Exception as e:
-    #     logging.warning(f"Hybrid inference failed for {cwe_id}: {e}")
+    try:
+        logging.info(f"Inferring CVE links for {cwe_id} via NLP hybrid model ")
+        ranked = link_nodes(description, "CWE", "CVE", limit=300, matcher= GLOBAL_MATCHER)
+        related_cves.extend([
+            r["item"].get("CVE_ID", "?")
+            for r in ranked
+        ])
+    except Exception as e:
+        logging.warning(f"Hybrid inference failed for {cwe_id}: {e}")
 
 
     # --- Return structured result ---

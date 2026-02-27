@@ -5,9 +5,12 @@ Dependencies:
 """
 
 import re
+import torch
 import requests
 import xml.etree.ElementTree as ET
 from typing import List, Dict, Tuple, Optional
+
+import torch as torch
 from bs4 import BeautifulSoup
 import io
 import zipfile
@@ -23,11 +26,14 @@ from veacor.Retrieves.text_cleaning import remove_citations_and_urls
 import hashlib
 
 def _to_json_safe(obj):
-    """Convert sets → lists so JSON will accept them."""
+    import numpy as np
+
     if isinstance(obj, dict):
         return {k: _to_json_safe(v) for k, v in obj.items()}
     if isinstance(obj, set):
         return list(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
     if isinstance(obj, list):
         return [_to_json_safe(v) for v in obj]
     return obj
@@ -61,14 +67,19 @@ _LINK_CACHE = {}
 # CONFIG
 # ------------------------------------------------------------
 EMBED_MODEL_NAME = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
+
 MIN_SCORE = 0.85
 TOP_K = 5
 
+def set_linking_config(*, top_k=None, min_score=None):
+    global TOP_K, MIN_SCORE
+    if top_k is not None:
+        TOP_K = int(top_k)
+    if min_score is not None:
+        MIN_SCORE = float(min_score)
 
 def _hash_text(text: str) -> str:
-    """
-    Stable hash for long descriptions — avoids storing full text as cache keys.
-    """
+
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:24]
 
 
@@ -406,8 +417,18 @@ class HybridMatcher:
             normalize_embeddings=True,
             show_progress_bar=False,
         )
+
         d = self._embed_targets(key, docs)
-        cos = util.cos_sim(q, d)[0].cpu().numpy()
+
+        # ensure target embeddings are torch tensor with same dtype/device
+        if isinstance(d, np.ndarray):
+            d = torch.from_numpy(d.astype(np.float32, copy=False))
+        elif isinstance(d, torch.Tensor):
+            d = d.float()
+
+        d = d.to(q.device).type_as(q)
+
+        cos = util.cos_sim(q, d)[0].detach().cpu().numpy()
         return cos
 
     def rank(
@@ -416,19 +437,13 @@ class HybridMatcher:
             target_set: List[Dict[str, str]],
             text_fields: Optional[List[str]] = None,
             dataset_key: str = "GENERIC",
-            top_k = TOP_K,
+            top_k = None
     ):
-        """
-        Hybrid ranker with original scoring:
-          0.70 * semantic(desc) +
-          0.20 * keyword Jaccard(desc) +
-          0.05 * SBERT name similarity +
-          0.05 * length scaling
 
-        Uses preprocessed fields:
-          _clean_desc, _tokens, _name, _length
-        """
-
+        if top_k is None:
+            top_k = TOP_K
+        if top_k <= 0:  # unlimited convention
+            top_k = len(target_set)
         if not target_set:
             return []
 
@@ -454,18 +469,25 @@ class HybridMatcher:
         keyword_n = min_max_scale(keyword_scores)
 
         # ---------- Name/title similarity (SBERT, original behaviour) ----------
+        # ---------- Name/title similarity (SBERT, original behaviour) ----------
         if not hasattr(self, "_query_cache"):
             self._query_cache = {}
 
         if source_clean not in self._query_cache:
             self._query_cache[source_clean] = self.model.encode(
                 source_clean,
+                convert_to_tensor=True,  # IMPORTANT: keep it torch
                 normalize_embeddings=True,
                 show_progress_bar=False
             )
+
         src_vec = self._query_cache[source_clean]
-        name_vecs = np.array([t["_name_emb"] for t in target_set])
-        name_boost = util.cos_sim(src_vec, name_vecs)[0].cpu().numpy()
+
+        # Build name vectors as float32 torch tensor (avoid numpy float64 -> torch.double)
+        name_vecs = np.array([t["_name_emb"] for t in target_set], dtype=np.float32)
+        name_vecs = torch.from_numpy(name_vecs).to(src_vec.device).type_as(src_vec)
+
+        name_boost = util.cos_sim(src_vec, name_vecs)[0].detach().cpu().numpy()
         name_boost = min_max_scale(name_boost)
 
         # ---------- Length relevance ----------
@@ -473,8 +495,8 @@ class HybridMatcher:
 
         # ---------- Final weighted score ----------
         final = (
-                0.70 * sem_n +  # primary semantic
-                0.20 * keyword_n +  # keyword overlap
+                0.65 * sem_n +  # primary semantic
+                0.25 * keyword_n +  # keyword overlap
                 0.05 * name_boost +  # SBERT title similarity
                 0.05 * length_scale  # description quality scaling
         )
@@ -492,8 +514,6 @@ class HybridMatcher:
                 break
 
         # ---------- Return top-k ----------
-        #idx_sorted = np.argsort(final)[::-1]
-        # Build results from early-stop list
         results = []
         for score, i in top_results:
             percentage = f"{score * 100:.1f}%"
@@ -627,7 +647,7 @@ def semantic_fallback_link(
         target_type: str,
         matcher: HybridMatcher,
         threshold: float = MIN_SCORE,
-        top_k: int = 5
+        top_k = None
 ):
     """
     Unified semantic fallback for ANY mapping:
@@ -646,8 +666,9 @@ def semantic_fallback_link(
       - Chooses appropriate text fields
       - Runs semantic similarity
     """
-
-    # Normalize
+    if top_k is None:
+        top_k = TOP_K
+    # Normalise
     source_type = source_type.upper()
     target_type = target_type.upper()
     clean_src = remove_citations_and_urls(
@@ -742,22 +763,15 @@ def link_nodes(
     threshold: float = MIN_SCORE,
     max_retries: int = 5,
     attempt: int = 1,
-    top_k: Optional[int] = None,
+    top_k = None,
     matcher: Optional[HybridMatcher] = None
 ):
     if top_k is None:
-        top_k = TOP_K  # default is 5
+        top_k = TOP_K
     if matcher is None:
         matcher = GLOBAL_MATCHER
 
     # ---- CACHE KEY ----
-    # key = (
-    #     _hash_text(source_description),
-    #     source_type.upper(),
-    #     target_type.upper(),
-    #     float(threshold)
-    # )
-    # ---- CACHE KEY (FIXED: includes top_k and limit) ----
     key = (
         _hash_text(source_description),
         source_type.upper(),

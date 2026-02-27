@@ -96,7 +96,7 @@ def fetch_cve_data(cve_id, timeout=15):
                 break
 
     # CWE(s)
-    cwe = None
+    cwe = []
     problem_types = cna.get("problemTypes", [])
     if problem_types:
         # problemTypes is usually a list; take first descriptions entry's cweId if present
@@ -105,10 +105,9 @@ def fetch_cve_data(cve_id, timeout=15):
             for d in descs:
                 cwe_id = d.get("cweId")
                 if cwe_id:
-                    cwe = cwe_id
-                    break
-            if cwe:
-                break
+                    cwe.append(cwe_id)
+
+#TODO TESTING
 
     # References from CNA (tags may include advisory/solution/tool)
     advisories, solutions, tools = [], [], []

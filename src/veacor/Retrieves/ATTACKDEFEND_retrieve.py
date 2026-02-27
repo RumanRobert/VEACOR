@@ -426,7 +426,6 @@ def fetch_defend_data(d3_id: str):
         "DEFEND",
         "ATTACK",
         limit=300,
-        top_k= 10,
         matcher=GLOBAL_MATCHER
     )
     if ranked:

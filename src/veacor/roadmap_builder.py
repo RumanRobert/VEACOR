@@ -7,7 +7,7 @@ from typing import Dict, Any
 import os
 import logging
 import argparse
-
+from veacor.Retrieves.NLP_relationship_finder import set_linking_config
 EXPANSION_RULES = {
     "CVE": {
         "CVE":   ["CWE"],
@@ -44,7 +44,8 @@ EXPANSION_RULES = {
 
 def lazy_imports():
     global fetch_cve_data, fetch_cwe_data, fetch_capec_data, fetch_cpe_data
-    global fetch_attack_data, fetch_defend_data, link_nodes
+    global fetch_attack_data, fetch_defend_data
+    global link_nodes
     start = time.time()
     print("Importing NLP...")
     from veacor.Retrieves.NLP_relationship_finder import link_nodes
@@ -116,6 +117,78 @@ def ensure_list(x):
         return [x]
     return [x]
 
+
+def strip_nlp_suffix(x: str) -> str:
+    if not isinstance(x, str):
+        return x
+    return re.sub(r"\s*-\s*NLP\s+Link\s*$", "", x, flags=re.I).strip()
+
+def extract_id_from_item(item: dict) -> tuple[str | None, str | None]:
+    """
+    Given a link_nodes() 'item', extract (id, type).
+    """
+    if not isinstance(item, dict):
+        return None, None
+
+    if item.get("CWE_ID"):
+        return strip_nlp_suffix(item["CWE_ID"]), "CWE"
+    if item.get("CAPEC_ID"):
+        return strip_nlp_suffix(item["CAPEC_ID"]), "CAPEC"
+    if item.get("ATTACK_ID"):
+        return strip_nlp_suffix(item["ATTACK_ID"]), "ATTACK"
+    if item.get("DEFEND_ID"):
+        return strip_nlp_suffix(item["DEFEND_ID"]), "DEFEND"
+    if item.get("CVE_ID"):
+        return strip_nlp_suffix(item["CVE_ID"]), "CVE"
+
+    return None, None
+
+def resolve_text_to_best_id(
+    text: str,
+    top_k_each: int = 5,
+    limit: int = 600,
+    forced_target_type: str | None = None
+):
+    """
+    Resolve free text -> best matching entity ID using NLP similarity.
+    Returns:
+      (best_id, best_type, best_score, debug_results)
+    """
+    if forced_target_type:
+        target_types = [forced_target_type.strip().upper()]
+    else:
+        target_types = ["CWE", "CAPEC", "ATTACK", "DEFEND"]
+
+    all_hits = []
+    debug = {}
+
+    for tgt in target_types:
+        try:
+            ranked = link_nodes(
+                source_description=text,
+                source_type="TEXT",
+                target_type=tgt,
+                top_k=top_k_each,
+                limit=limit
+            )
+            debug[tgt] = ranked
+
+            for r in ranked:
+                item = r.get("item", {})
+                score = float(r.get("score", 0.0))
+                rid, rtype = extract_id_from_item(item)
+                if rid and rtype:
+                    all_hits.append((score, rid, rtype, r))
+        except Exception as e:
+            logger.warning(f"[NLP] resolve_text_to_best_id failed for target={tgt}: {e}")
+            debug[tgt] = []
+
+    if not all_hits:
+        return None, None, 0.0, debug
+
+    all_hits.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_id, best_type, best_raw = all_hits[0]
+    return best_id, best_type, best_score, debug
 # === Type Detection ===
 def detect_type(identifier: str) -> str:
     s = identifier.strip().upper()
@@ -151,7 +224,7 @@ def handle_cve_input(cve_id: str) -> Dict[str, Any]:
         visited[key].clear()
     result = {
         "Query": cve_id,
-        "Detected_Type": "CWE",
+        "Detected_Type": "CVE",
         "Nodes": {"CVE": [], "CWE": [], "CAPEC": [], "ATTACK": [], "DEFEND": []},
         "Notes": []
     }
@@ -385,7 +458,7 @@ def handle_defend_input(defend_id: str) -> Dict[str, Any]:
 
         # 3️⃣ CAPEC nodes mapped to this ATTACK
         try:
-            ranked = link_nodes(source_description=attack_data.get("Description", ""),source_type="ATTACK", target_type="CAPEC",top_k=FETCH_LIMIT ,limit=600)
+            ranked = link_nodes(source_description=attack_data.get("Description", ""),source_type="ATTACK", target_type="CAPEC" ,limit=600)
             capec_list = [r["item"].get("CAPEC_ID") for r in ranked]
             logger.info(f"Found {len(capec_list)} CAPECs linked to {attack_id}: {capec_list}")
         except Exception as e:
@@ -471,9 +544,6 @@ def handle_cpe_input(cpe_id: str) -> Dict[str, Any]:
 
     return result
 
-
-
-
 def build_roadmap(identifier: str) -> Dict[str, Any]:
     for key in visited:
         visited[key].clear()
@@ -517,16 +587,16 @@ def build_roadmap(identifier: str) -> Dict[str, Any]:
     return result
 
 
-def run(user_input: str, mode: str = "default") -> str:
+def run(user_input: str, mode: str = "default", forced_target_type: str | None = None):
     global FETCH_LIMIT
 
     # mode -> CVE limit
     if mode == "agg":
-        FETCH_LIMIT = 20
+        set_linking_config(top_k=20)
     elif mode == "xtrm":
-        FETCH_LIMIT = None
+        set_linking_config(top_k=0)
     else:
-        FETCH_LIMIT = 5
+        set_linking_config(top_k=5)
 
     start_time = time.time()
     lazy_imports()
@@ -558,11 +628,42 @@ def run(user_input: str, mode: str = "default") -> str:
         else:
             roadmap = build_roadmap(user_input)
     else:
-        logger.error("❌ Invalid input format.")
-        raise SystemExit(1)
+        # === TEXT / DESCRIPTION PATH ===
+        logger.info("[NLP] Resolving free-text input...")
+        resolved_id, resolved_type, score, dbg = resolve_text_to_best_id(
+            user_input,
+            top_k_each=5,
+            limit=600,
+            forced_target_type=forced_target_type  # pass through from CLI
+        )
+
+        if not resolved_id or not resolved_type:
+            logger.error("❌ Could not resolve text input to a known entity.")
+            raise SystemExit(1)
+
+        logger.info(f"[NLP] Resolved to {resolved_type}:{resolved_id} (score={score:.3f})")
+      #  user_input = resolved_id
+        # Now re-enter normal ID handling
+        if resolved_type == "CVE":
+            roadmap = handle_cve_input(resolved_id)
+        elif resolved_type == "CWE":
+            roadmap = handle_cwe_input(resolved_id)
+        elif resolved_type == "CAPEC":
+            roadmap = handle_capec_input(resolved_id)
+        elif resolved_type == "ATTACK":
+            roadmap = handle_attack_input(resolved_id)
+        elif resolved_type == "DEFEND":
+            roadmap = handle_defend_input(resolved_id)
+        else:
+            logger.error(f"❌ Unsupported resolved type: {resolved_type}")
+            raise SystemExit(1)
+
+        # Preserve original query for output
+        roadmap["Query"] = user_input
+        roadmap["Detected_Type"] = resolved_type
 
     logger.info("The type of input: %s", det_type)
-
+    user_input = resolved_id
     # === Prepare folder and filenames ===
     base_name = re.sub(r'[^A-Za-z0-9_.-]', '_', user_input)
     from pathlib import Path

@@ -264,7 +264,7 @@ def build_graph_from_json(filepath):
                 continue
 
             for rel_field in rel_fields:
-                related = src.get(rel_field, [])
+                related = src.get(rel_field, []) or []
                 if isinstance(related, str):
                     related = [related]
 

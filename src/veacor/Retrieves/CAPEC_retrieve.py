@@ -271,13 +271,13 @@ def fetch_capec_data(capec_id):
             example_instances.append(text)
         try:
             logging.info(f"Inferring CWE links for {capec_id} via NLP hybrid model ")
-            ranked = link_nodes(description, "CAPEC", "CWE", limit=500, top_k = 10, matcher = GLOBAL_MATCHER)
+            ranked = link_nodes(description, "CAPEC", "CWE", limit=500, matcher = GLOBAL_MATCHER)
             related_cwes.extend([r["item"].get("CWE_ID", "?") for r in ranked])
         except Exception as e:
             logging.warning(f"Hybrid inference failed for {capec_id}: {e}")
         try:
             logging.info(f"Inferring ATT&CK links for {capec_id} via NLP hybrid model ")
-            ranked = link_nodes(description, "CAPEC", "ATTACK", limit=300, top_k = 5 ,matcher = GLOBAL_MATCHER)
+            ranked = link_nodes(description, "CAPEC", "ATTACK", limit=300 ,matcher = GLOBAL_MATCHER)
             mitre_attacks.extend([r["item"].get("ATTACK_ID", "?") for r in ranked])
         except Exception as e:
             logging.warning(f"Hybrid inference failed for {capec_id}: {e}")
