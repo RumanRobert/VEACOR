@@ -10,13 +10,13 @@ The framework is intended for:
 - Red team operators  
 - Threat intelligence analysts  
 - Security researchers  
-- Blue team and defensive architects  
+- Defensive architects  
 
 ---
 
 # 1. Overview
 
-VEACOR enables automated correlation across the following ecosystems:
+VEACOR enables automated correlation across:
 
 - CPE (Common Platform Enumeration)
 - CVE (Common Vulnerabilities and Exposures)
@@ -25,16 +25,16 @@ VEACOR enables automated correlation across the following ecosystems:
 - MITRE ATT&CK
 - MITRE D3FEND
 
-The system constructs relationship chains such as:
+Relationship chains such as:
 
 CPE → CVE → CWE → CAPEC → ATT&CK → D3FEND
 
-Relationships are derived using:
+are generated automatically using:
 
-- Official structured mappings (MITRE / NVD references)
+- Official structured mappings (MITRE / NVD)
 - NLP-based semantic similarity inference
 
-The output is a structured JSON attack graph and an interactive visualization.
+The output consists of structured JSON data and an interactive attack graph.
 
 ---
 
@@ -42,22 +42,20 @@ The output is a structured JSON attack graph and an interactive visualization.
 
 - Automated cross-framework intelligence correlation
 - Hybrid structured + semantic linking
-- Multi-layer attack path generation
-- Offensive-to-defensive knowledge mapping
-- Configurable graph expansion modes
-- Interactive visualization with node-level drill-down
+- Multi-layer attack path construction
+- Offensive-to-defensive knowledge bridging
+- Configurable expansion depth
+- Interactive drill-down visualization
 - Reproducible roadmap generation from minimal input
 
 ---
 
 # 3. Architecture
 
-## Core Components
-
 veacor/
-- cli.py                         — Command-line entry point
-- roadmap_builder.py             — Graph orchestration and expansion engine
-- Visualize.py                   — Interactive Dash visualization
+- cli.py                         — Command-line interface
+- roadmap_builder.py             — Graph expansion engine
+- Visualize.py                   — Dash-based visualization
 - Retrieves/
     - CPE_retrieve.py
     - CVE_retrieve.py
@@ -67,50 +65,64 @@ veacor/
     - NLP_relationship_finder.py
     - text_cleaning.py
 
-### Processing Flow
-
-1. User provides a single identifier or product keyword.
-2. Data is retrieved from authoritative sources.
-3. Structured relationships are extracted.
-4. NLP similarity is applied for cross-dataset inference.
-5. Multi-layer roadmap is constructed.
-6. Structured JSON files are generated.
-7. Interactive visualization is launched.
-
 ---
 
-# 4. Installation
+# 4. Installation (Automated Installers)
 
-## Requirements
+VEACOR provides cross-platform installers that automatically:
 
-- Python 3.10+
-- Internet connection (for data retrieval and model download)
+- Create a virtual environment (.venv)
+- Upgrade pip, setuptools, wheel
+- Install dependencies from requirements.txt
+- Install VEACOR locally (editable mode)
+- Register the `veacorg` CLI command
+- Validate installation via `veacorg --help`
 
-## Setup
-
-Create and activate a virtual environment:
-
-Linux / macOS:
-python3 -m venv .venv
-source .venv/bin/activate
+Available installers:
 
 Windows:
-python -m venv .venv
-.\.venv\Scripts\activate
+- VEACOR_WIN_installer.bat
 
-Install dependencies:
+Linux:
+- VEACOR_LINUX_installer.desktop
 
-pip install requests beautifulsoup4 sentence-transformers scikit-learn torch nltk dash dash-cytoscape networkx numpy
+macOS:
+- VEACOR_macOS_installer.command
+
+Primary Python installer:
+- VEACOR_installer.py
+
+## Windows
+
+Run:
+VEACOR_WIN_installer.bat
+
+## Linux
+
+chmod +x VEACOR_LINUX_installer.desktop  
+Then execute or double-click it.
+
+## macOS
+
+chmod +x VEACOR_macOS_installer.command  
+Then run:
+./VEACOR_macOS_installer.command
+
+## Manual (Advanced)
+
+python VEACOR_installer.py
+
+After installation:
+
+veacorg --help
 
 ---
 
 # 5. Usage
 
-VEACOR is executed via CLI:
-
 veacorg <INPUT>
 
-## Supported Inputs
+Supported inputs:
 
 CVE:
 veacorg CVE-2023-4412
@@ -127,34 +139,29 @@ veacorg T1059
 MITRE D3FEND:
 veacorg D3-DAE
 
-CPE 2.3:
+CPE:
 veacorg cpe:2.3:a:apache:http_server:2.4.49
 
-Product keyword search:
+Product search:
 veacorg -p "Microsoft IIS 3.0"
 
-Description-based resolution:
+Description resolution:
 veacorg -desc CWE
 
 ---
 
 # 6. Expansion Modes
 
-Graph expansion size can be controlled using:
-
 --mode default   (TOP_K = 5)  
 --mode agg       (TOP_K = 20)  
---mode xtrm      (Unlimited expansion)
+--mode xtrm      (Unlimited)
 
 Example:
-
 veacorg CVE-2023-4412 --mode agg
 
 ---
 
 # 7. Output Structure
-
-Each execution generates:
 
 outputs/
 └── roadmap_<INPUT>_output/
@@ -166,82 +173,62 @@ outputs/
     ├── ATTACKs.json
     └── DEFENDs.json
 
-The unified roadmap JSON contains:
-
-- Nodes
-- Edges
-- Relationship types (Structured / NLP Link)
-- File references to detailed entity data
-
 ---
 
 # 8. Visualization
 
-VEACOR includes a Dash-based interactive network interface.
+Interactive Dash-based attack graph with:
 
-Features:
-
-- Entity-type color grouping
-- Node metadata side panel
-- Double-click to open detailed JSON record
-- Neighbor highlighting for local analysis
-- Deterministic layout for reproducibility
+- Entity-type grouping
+- Metadata side panel
+- Double-click JSON drill-down
+- Neighbor highlighting
+- Deterministic layout
 
 ---
 
 # 9. NLP Correlation Engine
 
-The semantic linking engine combines:
+Hybrid similarity model using:
 
-- SentenceTransformer embeddings (multi-qa-mpnet-base-dot-v1)
-- Keyword overlap scoring (Jaccard similarity)
-- Title similarity scoring
+- SentenceTransformer embeddings
+- Keyword overlap scoring
+- Title similarity
 - Length normalization scaling
 
-Default configuration:
+Default:
 
 EMBED_MODEL_NAME = sentence-transformers/multi-qa-mpnet-base-dot-v1  
 MIN_SCORE = 0.85  
 TOP_K = 5  
 
-Caching is implemented for:
-
-- Dataset embeddings
-- Preprocessed descriptions
-- Previously computed similarity queries
-
 ---
 
-# 10. Practical Applications
+# 10. Operational Use Cases
 
-VEACOR can support:
-
-- Attack surface analysis
-- Vulnerability chaining research
-- Red team scenario construction
+- Vulnerability chaining
+- Red team scenario planning
 - Defensive control mapping
-- Threat modeling exercises
-- Security research and reporting
+- Threat modeling
+- Security reporting
 
 ---
 
 # 11. Limitations
 
-- Requires internet connectivity during execution
-- NLP-based links are probabilistic, not authoritative mappings
-- Extreme expansion mode may generate large graphs
-- Performance depends on dataset size and threshold configuration
+- Internet required
+- NLP links are probabilistic
+- Extreme expansion may increase graph size
 
 ---
 
 # 12. Research Context
 
-This framework was developed as part of a diploma thesis on automated attack graph generation.  
-It demonstrates how structured CTI and semantic similarity modeling can be combined to automate multi-layer adversarial roadmap construction.
+Developed as part of a diploma thesis on automated attack graph generation.
 
 ---
 
 # 13. License
 
 Academic and research use.  
-For commercial use or redistribution, consult the project author.
+For commercial use, contact the author.
