@@ -601,7 +601,8 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
     lazy_imports()
 
     kind = is_keyword_or_text(user_input)
-    det_type = detect_type(user_input)
+    det_type = detect_type(user_input)  # always defined
+    resolved_id = user_input
 
     # === Determine what to fetch ===
     if kind == "id" or user_input.startswith("-p") or user_input.startswith("-P"):
@@ -641,7 +642,10 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
             raise SystemExit(1)
 
         logger.info(f"[NLP] Resolved to {resolved_type}:{resolved_id} (score={score:.3f})")
+
         user_input = resolved_id
+        det_type = resolved_type
+
         # Now re-enter normal ID handling
         if resolved_type == "CVE":
             roadmap = handle_cve_input(resolved_id)
@@ -664,7 +668,6 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
     logger.info("The type of input: %s", det_type)
     # === Prepare folder and filenames ===
     base_name = re.sub(r'[^A-Za-z0-9_.-]', '_', user_input)
-    from pathlib import Path
 
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
     OUTPUTS_DIR = PROJECT_ROOT / "outputs"
