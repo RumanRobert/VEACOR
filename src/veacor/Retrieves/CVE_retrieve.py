@@ -67,7 +67,6 @@ def fetch_cve_data(cve_id, timeout=15):
 
     published = data.get("cveMetadata", {}).get("datePublished")
     updated = data.get("cveMetadata", {}).get("dateUpdated")
-
     # CVSS: prefer highest version available in the CNA metrics (try to find any CVSS keys)
     cvss_score_str = None
     severity = None
@@ -101,13 +100,19 @@ def fetch_cve_data(cve_id, timeout=15):
     if problem_types:
         # problemTypes is usually a list; take first descriptions entry's cweId if present
         for pt in problem_types:
-            descs = pt.get("descriptions", []) or []
+            descs = pt.get("descriptions", [])
             for d in descs:
                 cwe_id = d.get("cweId")
+                if not cwe_id:
+                    # If cweId missing, extract from description (e.g., "CWE-89 SQL Injection")
+                    if d.get("Type") =="CWE":
+                        desc = d.get("description", "")
+                        if desc:
+                            cwe_id = desc.split()[0]  # Take first token
                 if cwe_id:
                     cwe.append(cwe_id)
 
-#TODO TESTING
+
 
     # References from CNA (tags may include advisory/solution/tool)
     advisories, solutions, tools = [], [], []
@@ -291,234 +296,389 @@ def fetch_cve_data(cve_id, timeout=15):
     return result
 
 
+# def fetch_from_nvd(cve_id, timeout=20):
+#     """
+#     Scrape NVD page for enrichment. Focuses on:
+#     - CVSS fallback (4.0 → 3.x → 2.0)
+#     - Severity
+#     - CWE
+#     - Products_Info if CVE.org lacks it (best-effort)
+#     - Exploit_Tools, Advisories, Solutions, Tools (URLs)
+#     """
+#     nvd_url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
+#     try:
+#         resp = requests.get(nvd_url, timeout=timeout, headers=REQUEST_HEADERS)
+#         resp.encoding = "utf-8"
+#     except Exception as e:
+#         logging.error(f"Error fetching NVD page: {e}")
+#         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
+#
+#     if resp.status_code != 200:
+#         logging.error(f"NVD returned status {resp.status_code} for {cve_id}")
+#         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
+#
+#     soup = BeautifulSoup(resp.text, "html.parser")
+#
+#     # Title (near vuln id)
+#     title = None
+#     title_tag = soup.find("span", {"data-testid": "page-header-vuln-id"})
+#     if title_tag:
+#         # sibling text often contains the title
+#         sibling = title_tag.find_next_sibling(text=True)
+#         if sibling:
+#             title = sibling.strip(" -")
+#
+#     # Description
+#     description = None
+#     desc_div = soup.find("p", {"data-testid": "vuln-description"})
+#     if desc_div:
+#         description = desc_div.get_text(strip=True)
+#
+#     # --- CVSS (robust multi-version detection, supports external scores like CISA-ADP) ---
+#     import re
+#
+#     cvss_score_str = None
+#     severity = None
+#
+#     for version, panel_id in [
+#         ("4.0", "vuln-cvss4-panel"),
+#         ("3.x", "vuln-cvss3-panel"),
+#         ("2.0", "vuln-cvss2-panel"),
+#     ]:
+#         panel = soup.find("div", {"data-testid": panel_id})
+#         if not panel:
+#             continue
+#
+#         # Look for any Base Score or numeric CVSS score text within this panel
+#         # Try to find all span elements that might include numeric scores
+#         spans = panel.find_all("span")
+#         found_score = None
+#         found_severity = None
+#
+#         for sp in spans:
+#             text = sp.get_text(strip=True)
+#             if not text:
+#                 continue
+#             # Skip "N/A"
+#             if "N/A" in text:
+#                 continue
+#             # Detect numeric scores like 4.3, 7.8, 9.1 etc.
+#             m = re.match(r"^(\d+(\.\d+)?)(?:\s*([A-Z]+))?$", text)
+#             if m:
+#                 found_score = m.group(1)
+#                 sev = m.group(3)
+#                 if sev:
+#                     found_severity = sev.title()
+#                 # Stop at the first valid numeric score
+#                 break
+#
+#         # If not found yet, look for ADP/CISA Base Scores elsewhere in this panel
+#         if not found_score:
+#             adp_tags = panel.find_all(string=lambda s: s and "Base Score:" in s)
+#             for lbl in adp_tags:
+#                 parent = lbl.find_parent()
+#                 if not parent:
+#                     continue
+#                 val_span = parent.find_next("span")
+#                 if val_span:
+#                     val_text = val_span.get_text(strip=True)
+#                     if val_text and "N/A" not in val_text and any(ch.isdigit() for ch in val_text):
+#                         parts = val_text.split()
+#                         found_score = parts[0]
+#                         if len(parts) > 1:
+#                             found_severity = parts[1].title()
+#                         break
+#
+#         if found_score:
+#             cvss_score_str = f"{found_score} (Version {version})"
+#             severity = found_severity or severity
+#             break
+#
+#     # CWE
+#     cwe = None
+#     cwe_table = soup.find("table", {"data-testid": "vuln-CWEs-table"})
+#     if cwe_table:
+#         a = cwe_table.find("a", href=True)
+#         if a:
+#             cwe = a.get_text(strip=True)
+#     else:
+#         # fallback: find strings containing CWE-
+#         txt = soup.find(string=lambda s: s and "CWE-" in s)
+#         if txt:
+#             cwe = txt.strip()
+#
+#     # Products_Info from NVD configurations table (best-effort)
+#     products_info = []
+#     config_table = soup.find("table", {"data-testid": "vuln-configurations-table"})
+#     if config_table:
+#         # The NVD HTML structure varies. We'll attempt to find rows/bodies describing vendor/product/version bullets.
+#         # Find each configuration block (tbody or divs). We'll search for vendor/product cells if present.
+#         rows = config_table.find_all("tr")
+#         # We'll collect mapping key -> affected versions list
+#         temp = {}
+#         for r in rows:
+#             tds = r.find_all("td")
+#             if not tds:
+#                 continue
+#             # Heuristic: first td may be status, second vendor, third product, fourth versions
+#             td_texts = [td.get_text(" ", strip=True) for td in tds]
+#             # If there are at least 3 columns, map them
+#             if len(td_texts) >= 3:
+#                 status = td_texts[0]
+#                 vendor = td_texts[1] or "Unknown"
+#                 product = td_texts[2] or "(no product specified)"
+#                 version_info = td_texts[3] if len(td_texts) > 3 else ""
+#                 key = (vendor, product)
+#                 if key not in temp:
+#                     temp[key] = []
+#                 if version_info:
+#                     temp[key].append(version_info)
+#             else:
+#                 # attempt to pull bullets/lis
+#                 li = r.find("li")
+#                 if li:
+#                     text = li.get_text(strip=True)
+#                     # find surrounding vendor/product by searching parent nodes
+#                     parent = r.find_parent("tbody") or r.find_parent("table")
+#                     vendor = "Unknown"
+#                     product = "(no product specified)"
+#                     # naive: search for previous header cells
+#                     prev_vendor = r.find_previous("td", {"data-testid": "vuln-software-vendor"})
+#                     prev_product = r.find_previous("td", {"data-testid": "vuln-software-product"})
+#                     if prev_vendor:
+#                         vendor = prev_vendor.get_text(strip=True) or vendor
+#                     if prev_product:
+#                         product = prev_product.get_text(strip=True) or product
+#                     key = (vendor, product)
+#                     temp.setdefault(key, []).append(text)
+#         # convert temp to products_info list
+#         for (vendor, product), vers in temp.items():
+#             products_info.append({
+#                 "Vendor": vendor,
+#                 "Product": product,
+#                 "Affected_Versions": list(dict.fromkeys(vers))
+#             })
+#
+#     # Exploit tools (often a section text)
+#     exploit_tools = []
+#     exploit_section = soup.find(string=lambda s: s and "Tools Used for Exploitation" in s)
+#     if exploit_section:
+#         parent_sec = exploit_section.find_parent()
+#         if parent_sec:
+#             for a in parent_sec.find_all("a", href=True):
+#                 exploit_tools.append(a["href"])
+#
+#     # References sections (Advisories / Solutions / Tools)
+#     advisories, solutions, tools = [], [], []
+#     # NVD often has "vuln-hyperlinks-section" blocks
+#     ref_sections = soup.find_all("div", {"data-testid": "vuln-hyperlinks-section"})
+#     for ref in ref_sections:
+#         header = ref.find("h4")
+#         if not header:
+#             continue
+#         category = header.text.strip().lower()
+#         urls = [a["href"] for a in ref.find_all("a", href=True)]
+#         if "advisories" in category:
+#             advisories.extend(urls)
+#         elif "solutions" in category:
+#             solutions.extend(urls)
+#         elif "tools" in category:
+#             tools.extend(urls)
+#         else:
+#             # if can't classify, add to advisories as fallback
+#             advisories.extend(urls)
+#
+#     # dedupe lists
+#     advisories = list(dict.fromkeys(advisories))
+#     solutions = list(dict.fromkeys(solutions))
+#     tools = list(dict.fromkeys(tools))
+#     exploit_tools = list(dict.fromkeys(exploit_tools))
+#
+#     try:
+#         logging.info(f"Inferring CWE links for {cve_id} via NLP hybrid model ")
+#         ranked = link_nodes(description, "CVE", "CWE", limit=600, matcher = GLOBAL_MATCHER)
+#         if not isinstance(cwe, list):
+#             cwe = []
+#         cwe.extend(r["item"].get("CWE_ID", "?") for r in ranked)
+#         cwe = list(dict.fromkeys(cwe))
+#
+#     except Exception as e:
+#         logging.warning(f"Hybrid inference failed for {cve_id}: {e}")
+#
+#     result = {
+#         "CVE_ID": cve_id,
+#         "Description": description,
+#         "Related_CWEs": cwe,
+#         "CVSS_Score": cvss_score_str,
+#         "Severity": severity,
+#         "Products_Info": products_info,
+#         "Exploit_Tools": exploit_tools,
+#         "Advisories": advisories,
+#         "Solutions": solutions,
+#         "Tools": tools,
+#
+#         # This function is NVD-only
+#         "Source_Page": nvd_url,
+#         "Source_Used": "NVD scrape"
+#     }
+#
+#     return result
+#
+
 def fetch_from_nvd(cve_id, timeout=20):
     """
-    Scrape NVD page for enrichment. Focuses on:
-    - CVSS fallback (4.0 → 3.x → 2.0)
-    - Severity
-    - CWE
-    - Products_Info if CVE.org lacks it (best-effort)
-    - Exploit_Tools, Advisories, Solutions, Tools (URLs)
+    Retrieve CVE data directly from the NVD API.
+
+    Returns a dictionary structured exactly like your original `result`.
+    Minimal changes made to ensure 'Affected_Versions' is hashable for downstream dedup.
     """
-    nvd_url = f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+
+    nvd_url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
+
     try:
         resp = requests.get(nvd_url, timeout=timeout, headers=REQUEST_HEADERS)
-        resp.encoding = "utf-8"
+        data = resp.json()
     except Exception as e:
-        logging.error(f"Error fetching NVD page: {e}")
+        logging.error(f"NVD API request failed: {e}")
         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
 
-    if resp.status_code != 200:
-        logging.error(f"NVD returned status {resp.status_code} for {cve_id}")
+    vulns = data.get("vulnerabilities", [])
+    if not vulns:
+        logging.warning(f"No NVD entry found for {cve_id}")
         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    cve = vulns[0].get("cve", {})
 
-    # Title (near vuln id)
-    title = None
-    title_tag = soup.find("span", {"data-testid": "page-header-vuln-id"})
-    if title_tag:
-        # sibling text often contains the title
-        sibling = title_tag.find_next_sibling(text=True)
-        if sibling:
-            title = sibling.strip(" -")
-
+    # -----------------------------
     # Description
+    # -----------------------------
     description = None
-    desc_div = soup.find("p", {"data-testid": "vuln-description"})
-    if desc_div:
-        description = desc_div.get_text(strip=True)
-
-    # --- CVSS (robust multi-version detection, supports external scores like CISA-ADP) ---
-    import re
-
-    cvss_score_str = None
-    severity = None
-
-    for version, panel_id in [
-        ("4.0", "vuln-cvss4-panel"),
-        ("3.x", "vuln-cvss3-panel"),
-        ("2.0", "vuln-cvss2-panel"),
-    ]:
-        panel = soup.find("div", {"data-testid": panel_id})
-        if not panel:
-            continue
-
-        # Look for any Base Score or numeric CVSS score text within this panel
-        # Try to find all span elements that might include numeric scores
-        spans = panel.find_all("span")
-        found_score = None
-        found_severity = None
-
-        for sp in spans:
-            text = sp.get_text(strip=True)
-            if not text:
-                continue
-            # Skip "N/A"
-            if "N/A" in text:
-                continue
-            # Detect numeric scores like 4.3, 7.8, 9.1 etc.
-            m = re.match(r"^(\d+(\.\d+)?)(?:\s*([A-Z]+))?$", text)
-            if m:
-                found_score = m.group(1)
-                sev = m.group(3)
-                if sev:
-                    found_severity = sev.title()
-                # Stop at the first valid numeric score
-                break
-
-        # If not found yet, look for ADP/CISA Base Scores elsewhere in this panel
-        if not found_score:
-            adp_tags = panel.find_all(string=lambda s: s and "Base Score:" in s)
-            for lbl in adp_tags:
-                parent = lbl.find_parent()
-                if not parent:
-                    continue
-                val_span = parent.find_next("span")
-                if val_span:
-                    val_text = val_span.get_text(strip=True)
-                    if val_text and "N/A" not in val_text and any(ch.isdigit() for ch in val_text):
-                        parts = val_text.split()
-                        found_score = parts[0]
-                        if len(parts) > 1:
-                            found_severity = parts[1].title()
-                        break
-
-        if found_score:
-            cvss_score_str = f"{found_score} (Version {version})"
-            severity = found_severity or severity
+    for d in cve.get("descriptions", []):
+        if d.get("lang") == "en":
+            description = d.get("value")
             break
 
+    # -----------------------------
     # CWE
-    cwe = None
-    cwe_table = soup.find("table", {"data-testid": "vuln-CWEs-table"})
-    if cwe_table:
-        a = cwe_table.find("a", href=True)
-        if a:
-            cwe = a.get_text(strip=True)
-    else:
-        # fallback: find strings containing CWE-
-        txt = soup.find(string=lambda s: s and "CWE-" in s)
-        if txt:
-            cwe = txt.strip()
+    # -----------------------------
+    cwe = []
+    for w in cve.get("weaknesses", []):
+        for desc in w.get("description", []):
+            if desc.get("lang") == "en":
+                val = desc.get("value")
+                if val and val.startswith("CWE-"):
+                    cwe.append(val)
+    cwe = list(dict.fromkeys(cwe))
 
-    # Products_Info from NVD configurations table (best-effort)
+    # -----------------------------
+    # CVSS metrics
+    # -----------------------------
+    metrics = cve.get("metrics", {})
+
+    cvss_score = None
+    severity = None
+
+    def parse_cvss(metric_list, version):
+        if not metric_list:
+            return None, None
+        m = metric_list[0]
+        score = m.get("cvssData", {}).get("baseScore")
+        sev = m.get("cvssData", {}).get("baseSeverity")
+        if score:
+            return f"{score} (Version {version})", sev
+        return None, None
+
+    cvss_score, severity = parse_cvss(metrics.get("cvssMetricV40"), "4.0")
+    if not cvss_score:
+        cvss_score, severity = parse_cvss(metrics.get("cvssMetricV31"), "3.1")
+    if not cvss_score:
+        cvss_score, severity = parse_cvss(metrics.get("cvssMetricV30"), "3.0")
+    if not cvss_score:
+        cvss_score, severity = parse_cvss(metrics.get("cvssMetricV2"), "2.0")
+
+    # -----------------------------
+    # Products
+    # -----------------------------
     products_info = []
-    config_table = soup.find("table", {"data-testid": "vuln-configurations-table"})
-    if config_table:
-        # The NVD HTML structure varies. We'll attempt to find rows/bodies describing vendor/product/version bullets.
-        # Find each configuration block (tbody or divs). We'll search for vendor/product cells if present.
-        rows = config_table.find_all("tr")
-        # We'll collect mapping key -> affected versions list
-        temp = {}
-        for r in rows:
-            tds = r.find_all("td")
-            if not tds:
-                continue
-            # Heuristic: first td may be status, second vendor, third product, fourth versions
-            td_texts = [td.get_text(" ", strip=True) for td in tds]
-            # If there are at least 3 columns, map them
-            if len(td_texts) >= 3:
-                status = td_texts[0]
-                vendor = td_texts[1] or "Unknown"
-                product = td_texts[2] or "(no product specified)"
-                version_info = td_texts[3] if len(td_texts) > 3 else ""
-                key = (vendor, product)
-                if key not in temp:
-                    temp[key] = []
-                if version_info:
-                    temp[key].append(version_info)
-            else:
-                # attempt to pull bullets/lis
-                li = r.find("li")
-                if li:
-                    text = li.get_text(strip=True)
-                    # find surrounding vendor/product by searching parent nodes
-                    parent = r.find_parent("tbody") or r.find_parent("table")
-                    vendor = "Unknown"
-                    product = "(no product specified)"
-                    # naive: search for previous header cells
-                    prev_vendor = r.find_previous("td", {"data-testid": "vuln-software-vendor"})
-                    prev_product = r.find_previous("td", {"data-testid": "vuln-software-product"})
-                    if prev_vendor:
-                        vendor = prev_vendor.get_text(strip=True) or vendor
-                    if prev_product:
-                        product = prev_product.get_text(strip=True) or product
-                    key = (vendor, product)
-                    temp.setdefault(key, []).append(text)
-        # convert temp to products_info list
-        for (vendor, product), vers in temp.items():
-            products_info.append({
-                "Vendor": vendor,
-                "Product": product,
-                "Affected_Versions": list(dict.fromkeys(vers))
-            })
+    configurations = cve.get("configurations", [])
+    for conf in configurations:
+        for node in conf.get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                cpe = match.get("criteria")
+                if not cpe:
+                    continue
+                parts = cpe.split(":")
+                vendor = parts[3] if len(parts) > 3 else "Unknown"
+                product = parts[4] if len(parts) > 4 else "(no product specified)"
+                version = parts[5] if len(parts) > 5 else "*"
+                products_info.append({
+                    "Vendor": vendor,
+                    "Product": product,
+                    "Affected_Versions": [version]  # keep list here
+                })
 
-    # Exploit tools (often a section text)
-    exploit_tools = []
-    exploit_section = soup.find(string=lambda s: s and "Tools Used for Exploitation" in s)
-    if exploit_section:
-        parent_sec = exploit_section.find_parent()
-        if parent_sec:
-            for a in parent_sec.find_all("a", href=True):
-                exploit_tools.append(a["href"])
+    # -----------------------------
+    # Fix: convert Affected_Versions to tuple so downstream dedup works
+    # -----------------------------
+    for p in products_info:
+        p["Affected_Versions"] = tuple(p.get("Affected_Versions", []))
 
-    # References sections (Advisories / Solutions / Tools)
-    advisories, solutions, tools = [], [], []
-    # NVD often has "vuln-hyperlinks-section" blocks
-    ref_sections = soup.find_all("div", {"data-testid": "vuln-hyperlinks-section"})
-    for ref in ref_sections:
-        header = ref.find("h4")
-        if not header:
+    # -----------------------------
+    # References
+    # -----------------------------
+    advisories, solutions, tools, exploit_tools = [], [], [], []
+    for ref in cve.get("references", []):
+        url = ref.get("url")
+        tags = ref.get("tags", [])
+        if not url:
             continue
-        category = header.text.strip().lower()
-        urls = [a["href"] for a in ref.find_all("a", href=True)]
-        if "advisories" in category:
-            advisories.extend(urls)
-        elif "solutions" in category:
-            solutions.extend(urls)
-        elif "tools" in category:
-            tools.extend(urls)
+        if "Exploit" in tags or "Tool" in tags:
+            exploit_tools.append(url)
+            tools.append(url)
+        elif "Patch" in tags or "Vendor Advisory" in tags:
+            solutions.append(url)
+            advisories.append(url)
         else:
-            # if can't classify, add to advisories as fallback
-            advisories.extend(urls)
+            advisories.append(url)
 
-    # dedupe lists
+    # Deduplicate references
     advisories = list(dict.fromkeys(advisories))
     solutions = list(dict.fromkeys(solutions))
     tools = list(dict.fromkeys(tools))
     exploit_tools = list(dict.fromkeys(exploit_tools))
 
+    # -----------------------------
+    # NLP enrichment for CWEs
+    # -----------------------------
     try:
-        logging.info(f"Inferring CWE links for {cve_id} via NLP hybrid model ")
-        ranked = link_nodes(description, "CVE", "CWE", limit=600, matcher = GLOBAL_MATCHER)
+        logging.info(f"Inferring CWE links for {cve_id} via NLP hybrid model")
+        ranked = link_nodes(description, "CVE", "CWE", limit=600, matcher=GLOBAL_MATCHER)
         if not isinstance(cwe, list):
             cwe = []
         cwe.extend(r["item"].get("CWE_ID", "?") for r in ranked)
         cwe = list(dict.fromkeys(cwe))
-
     except Exception as e:
         logging.warning(f"Hybrid inference failed for {cve_id}: {e}")
 
+    # -----------------------------
+    # Assemble final result
+    # -----------------------------
     result = {
         "CVE_ID": cve_id,
         "Description": description,
         "Related_CWEs": cwe,
-        "CVSS_Score": cvss_score_str,
+        "CVSS_Score": cvss_score,
         "Severity": severity,
         "Products_Info": products_info,
         "Exploit_Tools": exploit_tools,
         "Advisories": advisories,
         "Solutions": solutions,
         "Tools": tools,
-
-        # This function is NVD-only
         "Source_Page": nvd_url,
-        "Source_Used": "NVD scrape"
+        "Source_Used": "NVD API"
     }
 
     return result
-
 
 def _save_json(out, cve_id, folder="."):
     """Save JSON to file to folder/CVE-ID.json"""

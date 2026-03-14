@@ -244,13 +244,7 @@ def fetch_attack_data(attack_id: str, recursive=False):
     return result
 
 def fetch_defend_data(d3_id: str):
-    """Given D3-XXXX return related ATT&CK techniques and description.
 
-    This function uses the homepage autocomplete text to resolve the human-friendly
-    technique title, strips any code prefix (like "D3-ABPI" or "ABPI") and builds a
-    slug that preserves internal hyphens but removes spaces:
-      "Application-based Process Isolation" -> "Application-basedProcessIsolation"
-    """
     d3_id = re.sub(r"\s*-\s*NLP\s+Link\s*$", "", d3_id, flags=re.I)
     identifier = normalize_d3_code(d3_id)
     result = {"DEFEND": identifier, "RELATED_ATTACKS": [], "LOOKUP_FLOW": ""}
@@ -364,16 +358,27 @@ def fetch_defend_data(d3_id: str):
                         if isinstance(v, str) and len(v) > 50 and "attack" not in v.lower():
                             definition = v
                             break
+            # Extract ATT&CK IDs directly from structured JSON
+            if isinstance(jdata, dict) and "techniques" in jdata:
+                for t in jdata.get("techniques", []):
+                    tid = t.get("techniqueID")
+                    if isinstance(tid, str):
+                        found_tids.add(tid)
+
+            # Fallback regex extraction (covers other JSON formats)
             for tid in extract_tids_from_text(text_blob):
                 found_tids.add(tid)
         except Exception:
             continue
 
+    # Add discovered ATT&CK IDs from navigator JSON
+    if found_tids:
+        result["RELATED_ATTACKS"].extend(sorted(found_tids))
+
     if not found_tids:
         for tid in extract_tids_from_text(page.text):
             found_tids.add(tid)
 
-    # --- Extract ONLY the definition under <h2>Definition</h2> ---
     def_h2 = soup.find(lambda tag: tag.name in ["h2", "h3"] and "definition" in tag.get_text(strip=True).lower())
 
     definition = None

@@ -522,7 +522,6 @@ class HybridMatcher:
                 "score": score,
                 "percentage": percentage,
             })
-            print(f"Score:{score}")
         return results
 
 

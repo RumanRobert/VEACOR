@@ -31,6 +31,15 @@ Modes:
         nargs="?",
         help="Input identifier (CVE, CWE, CAPEC, ATT&CK, D3FEND, or CPE)"
     )
+
+    parser.add_argument(
+        "-p",
+        "--product",
+        nargs="+",
+        metavar="PRODUCT",
+        help="Vendor + product name (e.g., -p Microsoft IIS 3.0)"
+    )
+
     parser.add_argument(
         "--mode",
         choices=["default", "agg", "xtrm"],
@@ -46,6 +55,11 @@ Modes:
     )
 
     args = parser.parse_args()
+
+    if args.product:
+        product_query = "-p " + " ".join(args.product)
+        run(product_query, mode=args.mode)
+        return
 
     if args.description:
 

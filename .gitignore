@@ -41,6 +41,9 @@ __pycache__/
 # ===============================
 outputs/
 roadmap_*_output/
+results*.json
+NLP_eval.py
+NLP_eval_links.py
 
 *.egg-info/
 # ===============================

@@ -589,7 +589,6 @@ def build_roadmap(identifier: str) -> Dict[str, Any]:
 
 def run(user_input: str, mode: str = "default", forced_target_type: str | None = None):
     global FETCH_LIMIT
-
     # mode -> CVE limit
     if mode == "agg":
         set_linking_config(top_k=20)
@@ -602,7 +601,7 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
     lazy_imports()
 
     kind = is_keyword_or_text(user_input)
-    det_type = detect_type(user_input)  # always defined
+    det_type = detect_type(user_input)
 
     # === Determine what to fetch ===
     if kind == "id" or user_input.startswith("-p") or user_input.startswith("-P"):
@@ -642,7 +641,7 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
             raise SystemExit(1)
 
         logger.info(f"[NLP] Resolved to {resolved_type}:{resolved_id} (score={score:.3f})")
-      #  user_input = resolved_id
+        user_input = resolved_id
         # Now re-enter normal ID handling
         if resolved_type == "CVE":
             roadmap = handle_cve_input(resolved_id)
@@ -663,7 +662,6 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
         roadmap["Detected_Type"] = resolved_type
 
     logger.info("The type of input: %s", det_type)
-    user_input = resolved_id
     # === Prepare folder and filenames ===
     base_name = re.sub(r'[^A-Za-z0-9_.-]', '_', user_input)
     from pathlib import Path
@@ -778,17 +776,31 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
     with unified_file.open("w", encoding="utf-8") as f:
         json.dump(unified, f, indent=2, ensure_ascii=False)
 
+    runtime = time.time() - start_time
+
+    logger.info("⏱ Completed in %.1fs", runtime)
+
+    total_nodes = sum(len(v) for v in unified["Nodes"].values())
+    logger.info("Total nodes generated: %d", total_nodes)
+
+    # Save runtime statistics (append, do not overwrite)
+    runtime_file = OUTPUT_DIR / "runtime.txt"
+
+    with runtime_file.open("a", encoding="utf-8") as f:
+        f.write(f"{user_input} | {runtime:.3f} | {total_nodes}\n")
+
     logger.info("✅ Unified roadmap saved to: %s", unified_file)
     for t, meta in per_type.items():
         logger.info("📘 %ss file saved: %s", t, meta["path"])
-    logger.info("⏱ Completed in %.1fs", time.time() - start_time)
 
     # GUI is optional; do not hard-fail CLI if GUI fails
-    try:
-        from veacor.Visualize import run_app
-        run_app()
-    except Exception as e:
-        logger.warning("Visualizer could not be started: %s", e)
+    # try:
+    #     from veacor.Visualize import run_app
+    #     run_app()
+    # except Exception as e:
+    #     logger.warning("Visualizer could not be started: %s", e)
+
+
 
     return unified_file
 
