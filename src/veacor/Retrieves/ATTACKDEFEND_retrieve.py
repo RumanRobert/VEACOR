@@ -62,12 +62,193 @@ def find_all_layer_json_urls(page_soup, page_url):
             found.add(match)
     return sorted(found)
 
+# def fetch_attack_data(attack_id: str, recursive=False):
+#     """Fetch MITRE ATT&CK + D3FEND info for a given technique ID (e.g., 'T1059')."""
+#     numeral_id = re.sub(r"\s*-\s*NLP\s+Link\s*$", "", attack_id, flags=re.I)
+#     tid = numeral_id.strip().upper()
+#     api_url = API_URL.format(tid=tid)
+#     page_url = f"{BASE_URL}offensive-technique/attack/{tid}/"
+#     result = {
+#         "ATTACK": attack_id,
+#         "DEFEND": set(),
+#         "Related_CAPEC": set(),
+#         "Description": None,
+#         "Platforms": [],
+#         "Tactic": None,
+#         "Tactic_Type": None,
+#         "Version": None,
+#         "Mitigations": [],
+#         "Detection_Strategy": []
+#     }
+#
+#     headers = {"User-Agent": "attackdefend-lookup/1.0"}
+#
+#     # --- 1. Try D3FEND API linkages ---
+#     try:
+#         resp = requests.get(api_url, timeout=20, headers=headers)
+#         resp.raise_for_status()
+#         resp.encoding = "utf-8"
+#         data = resp.json()
+#     except Exception as e:
+#         if e.response is not None and e.response.status_code == 404:
+#             result["error"] = f"Could not retrieve more information from official sources. Most likely cause by the attack technique being absent on MITRE DEFEND website."
+#         else:
+#             result["error"] = f"Failed to fetch D3FEND API: {e}"
+#         data = {}
+#
+#     bindings = data.get("off_to_def", {}).get("results", {}).get("bindings", [])
+#     if bindings:
+#         for b in bindings:
+#             for val in b.values():
+#                 if isinstance(val, dict) and isinstance(val.get("value"), str):
+#                     if val["value"].upper().startswith("D3-"):
+#                         result["DEFEND"].add(val["value"].upper())
+#         result["Source_API"] = api_url
+#     else:
+#         text_blob = json.dumps(data)
+#         defences = extract_d3ids_from_text(text_blob)
+#         result["DEFEND"].update(defences)
+#
+#     # --- Build correct ATT&CK URL (subtechniques use slash instead of dot)
+#     if "." in tid:
+#         # Example: T1499.003 -> T1499/003
+#         base, sub = tid.split(".")
+#         attack_url = f"https://attack.mitre.org/techniques/{base}/{sub}/"
+#         pass
+#     else:
+#         attack_url = f"https://attack.mitre.org/techniques/{tid}/"
+#
+#     try:
+#         resp = requests.get(attack_url, timeout=20, headers=headers)
+#         resp.raise_for_status()
+#         resp.encoding = "utf-8"
+#         soup = BeautifulSoup(resp.text, "html.parser")
+#
+#         # --- Title ---
+#         title_el = soup.find("h1")
+#         if title_el:
+#             result["Title"] = title_el.get_text(" ", strip=True)
+#
+#         # --- Description ---
+#         desc = soup.find("div", class_=re.compile(r"description-body", re.I))
+#         if desc:
+#             result["Description"] = desc.get_text(" ", strip=True)
+#
+#         if not result.get("Description"):
+#             try:
+#                 resp = requests.get(
+#                     f"https://d3fend.mitre.org/offensive-technique/attack/{numeral_id}/",
+#                     timeout=20,
+#                     headers=headers
+#                 )
+#                 resp.raise_for_status()
+#                 resp.encoding = "utf-8"
+#                 soup = BeautifulSoup(resp.text, "html.parser")
+#
+#                 # ------------------------------
+#                 # Look for a "Definition" card
+#                 # ------------------------------
+#                 card = soup.find("div", class_="card")
+#
+#                 if card:
+#                     header = card.find("h2")
+#                     if header and header.get_text(strip=True).lower() == "definition":
+#                         text_block = card.find("div", class_="text-justify")
+#                         if text_block:
+#                             result["Description"] = text_block.get_text(" ", strip=True)
+#
+#                 # Optional: final fallback if Definition block not found
+#                 if not result.get("Description"):
+#                     # Try to find *any* <p> inside the card
+#                     p = card.find("p") if card else None
+#                     if p:
+#                         result["Description"] = p.get_text(" ", strip=True)
+#
+#             except Exception as e:
+#                 logging.error(f"[FALLBACK ERROR] Could not fetch fallback definition for {attack_id}: {e}")
+#
+#             # Platforms
+#             m = re.search(r"Platforms:\s*([^\n]+?)(?=Version|Created|Last Modified|$)", text, flags=re.I)
+#             if m:
+#                 result["Platforms"] = [p.strip() for p in re.split(r"[,;/]", m.group(1)) if p.strip()]
+#
+#             # Version
+#             m = re.search(r"Version:\s*([\w.\-]+)", text, flags=re.I)
+#             if m:
+#                 result["Version"] = m.group(1).strip()
+#
+#             # Tactic
+#             m = re.search(r"Tactic:\s*([A-Za-z0-9\s&\-]+)", text, flags=re.I)
+#             if m:
+#                 result["Tactic"] = m.group(1).strip()
+#
+#             # Tactic Type
+#             m = re.search(r"Tactic Type:\s*([A-Za-z0-9\s&\-]+)", text, flags=re.I)
+#             if m:
+#                 result["Tactic_Type"] = m.group(1).strip()
+#
+#         # --- Mitigations Section ---
+#         mit_head = soup.find(lambda tag: tag.name in ["h2", "h3"] and "Mitigations" in tag.get_text())
+#         if mit_head:
+#             table = mit_head.find_next("table")
+#             if table:
+#                 mitigations = []
+#                 for row in table.find_all("tr")[1:]:
+#                     cells = [td.get_text(" ", strip=True) for td in row.find_all("td")]
+#                     if any(cells):
+#                         mitigations.append(" | ".join(cells))
+#                     pass
+#                 result["Mitigations"] = mitigations
+#             pass
+#
+#         # --- Detection Strategy Section ---
+#         det_head = soup.find(lambda tag: tag.name in ["h2", "h3"] and "Detection" in tag.get_text())
+#         if det_head:
+#             det_table = det_head.find_next("table")
+#             dets = []
+#             if det_table:
+#                 for row in det_table.find_all("tr")[1:]:
+#                     cells = [td.get_text(" ", strip=True) for td in row.find_all("td")]
+#                     if any(cells):
+#                         dets.append(" | ".join(cells))
+#                     pass
+#             else:
+#                 # fallback to paragraph under detection
+#                 p = det_head.find_next("p")
+#                 if p:
+#                     dets.append(p.get_text(" ", strip=True))
+#                 pass
+#             result["Detection_Strategy"] = dets
+#     except Exception as e:
+#         result["error_attack"] = f"Failed to parse ATT&CK technique page: {e}"
+#
+#     logging.info(f"Inferring ATTACK→CAPEC links for {tid} via NLP hybrid model")
+#     print(result["Description"])
+#     ranked = link_nodes(source_description=result["Description"], source_type="ATTACK", target_type="CAPEC", limit=300, matcher=GLOBAL_MATCHER)
+#     result["Related_CAPEC"].update([
+#         r["item"].get("CAPEC_ID", "?")
+#         for r in ranked
+#     ])
+#
+#     logging.info(f"Inferring ATTACK→DEFEND links for {tid} via NLP hybrid model")
+#     ranked = link_nodes(source_description=result["Description"], source_type="ATTACK", target_type="DEFEND", limit=300, matcher = GLOBAL_MATCHER)
+#     result["DEFEND"].update([
+#         r["item"].get("DEFEND_ID", "?")
+#         for r in ranked
+#     ])
+#     result["Source_API"] = api_url
+#     result["DEFEND"] = sorted(result["DEFEND"])
+#     result["Related_CAPEC"] = sorted(result["Related_CAPEC"])
+#     result["Mitigated_by"] = result["DEFEND"]
+#     result["Source"] = attack_url
+#     return result
+
 def fetch_attack_data(attack_id: str, recursive=False):
     """Fetch MITRE ATT&CK + D3FEND info for a given technique ID (e.g., 'T1059')."""
     numeral_id = re.sub(r"\s*-\s*NLP\s+Link\s*$", "", attack_id, flags=re.I)
     tid = numeral_id.strip().upper()
     api_url = API_URL.format(tid=tid)
-    page_url = f"{BASE_URL}offensive-technique/attack/{tid}/"
+
     result = {
         "ATTACK": attack_id,
         "DEFEND": set(),
@@ -83,164 +264,89 @@ def fetch_attack_data(attack_id: str, recursive=False):
 
     headers = {"User-Agent": "attackdefend-lookup/1.0"}
 
-    # --- 1. Try D3FEND API linkages ---
+    # --- 1. D3FEND API / Scraping Logic (Existing) ---
     try:
         resp = requests.get(api_url, timeout=20, headers=headers)
         resp.raise_for_status()
-        resp.encoding = "utf-8"
         data = resp.json()
-    except Exception as e:
-        if e.response is not None and e.response.status_code == 404:
-            result["error"] = f"Could not retrieve more information from official sources. Most likely cause by the attack technique being absent on MITRE DEFEND website."
-        else:
-            result["error"] = f"Failed to fetch D3FEND API: {e}"
-        data = {}
-
-    bindings = data.get("off_to_def", {}).get("results", {}).get("bindings", [])
-    if bindings:
+        bindings = data.get("off_to_def", {}).get("results", {}).get("bindings", [])
         for b in bindings:
             for val in b.values():
-                if isinstance(val, dict) and isinstance(val.get("value"), str):
-                    if val["value"].upper().startswith("D3-"):
-                        result["DEFEND"].add(val["value"].upper())
-        result["Source_API"] = api_url
-    else:
-        text_blob = json.dumps(data)
-        defences = extract_d3ids_from_text(text_blob)
-        result["DEFEND"].update(defences)
+                if isinstance(val, dict) and str(val.get("value")).upper().startswith("D3-"):
+                    result["DEFEND"].add(val["value"].upper())
+    except Exception:
+        pass
 
-    # --- Build correct ATT&CK URL (subtechniques use slash instead of dot)
+    # --- 2. ATT&CK Website Scraping (Existing) ---
     if "." in tid:
-        # Example: T1499.003 -> T1499/003
         base, sub = tid.split(".")
         attack_url = f"https://attack.mitre.org/techniques/{base}/{sub}/"
-        pass
     else:
         attack_url = f"https://attack.mitre.org/techniques/{tid}/"
 
     try:
         resp = requests.get(attack_url, timeout=20, headers=headers)
         resp.raise_for_status()
-        resp.encoding = "utf-8"
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # --- Title ---
-        title_el = soup.find("h1")
-        if title_el:
-            result["Title"] = title_el.get_text(" ", strip=True)
+        # Description
+        desc_el = soup.find("div", class_=re.compile(r"description-body", re.I))
+        if desc_el:
+            result["Description"] = desc_el.get_text(" ", strip=True)
 
-        # --- Description ---
-        desc = soup.find("div", class_=re.compile(r"description-body", re.I))
-        if desc:
-            result["Description"] = desc.get_text(" ", strip=True)
-
-        if not result.get("Description"):
-            try:
-                resp = requests.get(
-                    f"https://d3fend.mitre.org/offensive-technique/attack/{numeral_id}/",
-                    timeout=20,
-                    headers=headers
-                )
-                resp.raise_for_status()
-                resp.encoding = "utf-8"
-                soup = BeautifulSoup(resp.text, "html.parser")
-
-                # ------------------------------
-                # Look for a "Definition" card
-                # ------------------------------
-                card = soup.find("div", class_="card")
-
-                if card:
-                    header = card.find("h2")
-                    if header and header.get_text(strip=True).lower() == "definition":
-                        text_block = card.find("div", class_="text-justify")
-                        if text_block:
-                            result["Description"] = text_block.get_text(" ", strip=True)
-
-                # Optional: final fallback if Definition block not found
-                if not result.get("Description"):
-                    # Try to find *any* <p> inside the card
-                    p = card.find("p") if card else None
-                    if p:
-                        result["Description"] = p.get_text(" ", strip=True)
-
-            except Exception as e:
-                logging.error(f"[FALLBACK ERROR] Could not fetch fallback definition for {attack_id}: {e}")
-
-            # Platforms
-            m = re.search(r"Platforms:\s*([^\n]+?)(?=Version|Created|Last Modified|$)", text, flags=re.I)
-            if m:
-                result["Platforms"] = [p.strip() for p in re.split(r"[,;/]", m.group(1)) if p.strip()]
-
-            # Version
-            m = re.search(r"Version:\s*([\w.\-]+)", text, flags=re.I)
-            if m:
-                result["Version"] = m.group(1).strip()
-
-            # Tactic
-            m = re.search(r"Tactic:\s*([A-Za-z0-9\s&\-]+)", text, flags=re.I)
-            if m:
-                result["Tactic"] = m.group(1).strip()
-
-            # Tactic Type
-            m = re.search(r"Tactic Type:\s*([A-Za-z0-9\s&\-]+)", text, flags=re.I)
-            if m:
-                result["Tactic_Type"] = m.group(1).strip()
-
-        # --- Mitigations Section ---
+        # Mitigations (Table Parsing)
         mit_head = soup.find(lambda tag: tag.name in ["h2", "h3"] and "Mitigations" in tag.get_text())
         if mit_head:
             table = mit_head.find_next("table")
             if table:
-                mitigations = []
                 for row in table.find_all("tr")[1:]:
                     cells = [td.get_text(" ", strip=True) for td in row.find_all("td")]
-                    if any(cells):
-                        mitigations.append(" | ".join(cells))
-                    pass
-                result["Mitigations"] = mitigations
-            pass
-
-        # --- Detection Strategy Section ---
-        det_head = soup.find(lambda tag: tag.name in ["h2", "h3"] and "Detection" in tag.get_text())
-        if det_head:
-            det_table = det_head.find_next("table")
-            dets = []
-            if det_table:
-                for row in det_table.find_all("tr")[1:]:
-                    cells = [td.get_text(" ", strip=True) for td in row.find_all("td")]
-                    if any(cells):
-                        dets.append(" | ".join(cells))
-                    pass
-            else:
-                # fallback to paragraph under detection
-                p = det_head.find_next("p")
-                if p:
-                    dets.append(p.get_text(" ", strip=True))
-                pass
-            result["Detection_Strategy"] = dets
+                    if len(cells) >= 2:
+                        # We take the mitigation description, usually the second column
+                        result["Mitigations"].append(cells[1])
     except Exception as e:
-        result["error_attack"] = f"Failed to parse ATT&CK technique page: {e}"
+        logging.error(f"Failed to scrape ATT&CK: {e}")
 
-    logging.info(f"Inferring ATTACK→CAPEC links for {tid} via NLP hybrid model")
-    print(result["Description"])
-    ranked = link_nodes(source_description=result["Description"], source_type="ATTACK", target_type="CAPEC", limit=300, matcher=GLOBAL_MATCHER)
-    result["Related_CAPEC"].update([
-        r["item"].get("CAPEC_ID", "?")
-        for r in ranked
-    ])
+    # --- 3. UPDATED NLP LOGIC: Granular Mitigation Mapping ---
+    # Instead of linking the whole list, we link each mitigation sentence individually
+    # to avoid "Semantic Dilution."
 
-    logging.info(f"Inferring ATTACK→DEFEND links for {tid} via NLP hybrid model")
-    ranked = link_nodes(source_description=result["Description"], source_type="ATTACK", target_type="DEFEND", limit=300, matcher = GLOBAL_MATCHER)
-    result["DEFEND"].update([
-        r["item"].get("DEFEND_ID", "?")
-        for r in ranked
-    ])
-    result["Source_API"] = api_url
-    result["DEFEND"] = sorted(result["DEFEND"])
-    result["Related_CAPEC"] = sorted(result["Related_CAPEC"])
+    logging.info(f"Inferring ATTACK→DEFEND links for {tid} via granular mitigation analysis")
+
+    for mitigation_text in result["Mitigations"]:
+        if len(mitigation_text) < 20: continue  # Skip very short/empty strings
+
+        # Run NLP for this specific mitigation entry
+        ranked = link_nodes(
+            source_description=mitigation_text,
+            source_type="ATTACK",
+            target_type="DEFEND",
+            limit=100,
+            matcher=GLOBAL_MATCHER
+        )
+
+        if ranked:
+            for r in ranked:
+                def_id = r["item"].get("DEFEND_ID", "?")
+                result["DEFEND"].add(def_id)
+
+    # --- 4. CAPEC Linking (Remains on Description) ---
+    if result["Description"]:
+        ranked_capec = link_nodes(
+            source_description=result["Description"],
+            source_type="ATTACK",
+            target_type="CAPEC",
+            limit=300,
+            matcher=GLOBAL_MATCHER
+        )
+        result["Related_CAPEC"].update([r["item"].get("CAPEC_ID", "?") for r in ranked_capec])
+
+    # Final Assembly
+    result["DEFEND"] = sorted(list(result["DEFEND"]))
+    result["Related_CAPEC"] = sorted(list(result["Related_CAPEC"]))
     result["Mitigated_by"] = result["DEFEND"]
     result["Source"] = attack_url
+
     return result
 
 def fetch_defend_data(d3_id: str):

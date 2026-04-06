@@ -8,6 +8,7 @@ import os
 import logging
 import argparse
 from veacor.Retrieves.NLP_relationship_finder import set_linking_config
+from pathlib import Path
 EXPANSION_RULES = {
     "CVE": {
         "CVE":   ["CWE"],
@@ -764,8 +765,6 @@ def run(user_input: str, mode: str = "default", forced_target_type: str | None =
             minimal_nodes.append(short)
 
         unified["Nodes"][node_type] = minimal_nodes
-
-    from pathlib import Path
 
     PROJECT_ROOT = Path(__file__).resolve().parents[2]
     OUTPUT_DIR = PROJECT_ROOT / "outputs"

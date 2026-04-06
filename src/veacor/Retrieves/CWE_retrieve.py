@@ -136,6 +136,8 @@ def fetch_cwe_data(cwe_id, visited=None):
                 if cols:
                     consequences.append(dict(zip(headers, cols)))
 
+
+
     # --- Likelihood of Exploit ---
     likelihood = None
     likelihood_section = get_section(soup, "Likelihood_Of_Exploit", cwe_id)
@@ -305,19 +307,42 @@ def fetch_cwe_data(cwe_id, visited=None):
                     applicable_platforms["Other"].append(txt)
 
     try:
-        logging.info(f"Inferring CAPEC links for {cwe_id} via NLP hybrid model ")
-        ranked = link_nodes(description, "CWE", "CAPEC",  limit=600, matcher = GLOBAL_MATCHER)
+        # 1. Reuse the same rich_context we built for CVEs
+        consequences_str = " ".join(
+            [f"{c.get('Scope', '')} {c.get('Impact', '')}" for c in consequences if isinstance(c, dict)])
+        mitigations_str = " ".join([m.get('Description', '') for m in potential_mitigations if isinstance(m, dict)])
+
+        # We combine them into a single searchable string
+        rich_context = f"{title}. {description}. Impacts: {consequences_str}. Fixes: {mitigations_str}"
+
+        logging.info(f"Inferring CAPEC links for {cwe_id} via enriched NLP context")
+
+        # 2. Call link_nodes using the rich_context instead of just 'description'
+        ranked = link_nodes(
+            source_description=rich_context,
+            source_type="CWE",
+            target_type="CAPEC",
+            limit=600,
+            matcher=GLOBAL_MATCHER
+        )
+
         capec_ids.extend([
             r["item"].get("CAPEC_ID", "?")
             for r in ranked
         ])
 
     except Exception as e:
-        logging.warning(f"Hybrid inference failed for {cwe_id}: {e}")
+        logging.warning(f"Enriched CAPEC inference failed for {cwe_id}: {e}")
 
     try:
         logging.info(f"Inferring CVE links for {cwe_id} via NLP hybrid model ")
-        ranked = link_nodes(description, "CWE", "CVE", limit=300, matcher= GLOBAL_MATCHER)
+        consequences_str = " ".join([c.get('Scope', '') + " " + c.get('Impact', '') for c in consequences])
+        mitigations_str = " ".join([m.get('Description', '') for m in potential_mitigations])
+
+        rich_context = f"{title}. {description}. Impacts: {consequences_str}. Fixes: {mitigations_str}"
+
+        # Use the enriched context for the search
+        ranked = link_nodes(rich_context, "CWE", "CVE", limit=300, threshold=0.60, matcher=GLOBAL_MATCHER)
         related_cves.extend([
             r["item"].get("CVE_ID", "?")
             for r in ranked

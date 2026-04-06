@@ -68,7 +68,7 @@ _LINK_CACHE = {}
 # ------------------------------------------------------------
 EMBED_MODEL_NAME = "sentence-transformers/multi-qa-mpnet-base-dot-v1"
 
-MIN_SCORE = 0.85
+MIN_SCORE = 0.75
 TOP_K = 5
 
 def set_linking_config(*, top_k=None, min_score=None):
@@ -457,6 +457,7 @@ class HybridMatcher:
         lengths = np.array([t["_length"] for t in target_set])
 
 
+
         # ---------- Semantic similarity ----------
         sem = self._semantic_scores(source_clean, docs, dataset_key)
         sem_n = min_max_scale(sem)
@@ -468,7 +469,6 @@ class HybridMatcher:
             keyword_scores.append(j)
         keyword_n = min_max_scale(keyword_scores)
 
-        # ---------- Name/title similarity (SBERT, original behaviour) ----------
         # ---------- Name/title similarity (SBERT, original behaviour) ----------
         if not hasattr(self, "_query_cache"):
             self._query_cache = {}
@@ -493,12 +493,26 @@ class HybridMatcher:
         # ---------- Length relevance ----------
         length_scale = min_max_scale(np.clip(lengths, 5, 150))
 
-        # ---------- Final weighted score ----------
+        id_boosts = np.zeros(len(target_set))
+        for i, target in enumerate(target_set):
+            # Look for the ID in the dictionary (works for CWE, CAPEC, or CVE)
+            target_id = target.get("CWE_ID") or target.get("CAPEC_ID") or target.get("CVE_ID") or target.get("ID")
+
+            if target_id:
+                # Clean the ID for comparison (e.g., 'CAPEC-98' -> 'capec-98')
+                clean_tid = str(target_id).strip().lower()
+                if clean_tid in source_clean.lower():
+                    # We give a massive boost (1.0) to ensure this matches first
+                    id_boosts[i] = 1.0
+
+                    # ---------- Final weighted score ----------
+        # We add the id_boosts to the final sum
         final = (
                 0.65 * sem_n +  # primary semantic
                 0.25 * keyword_n +  # keyword overlap
                 0.05 * name_boost +  # SBERT title similarity
-                0.05 * length_scale  # description quality scaling
+                0.05 * length_scale +  # description quality
+                id_boosts  # <--- ADDED BOOST HERE
         )
 
         # ---------- Early-stop top-k ----------
@@ -516,7 +530,8 @@ class HybridMatcher:
         # ---------- Return top-k ----------
         results = []
         for score, i in top_results:
-            percentage = f"{score * 100:.1f}%"
+            display_score = min(1.0, score)
+            percentage = f"{display_score * 100:.1f}%"
             results.append({
                 "item": target_set[i],
                 "score": score,
@@ -623,7 +638,7 @@ for key, entries in _raw.items():
         elif key == "ATTACK":
             desc = desc.split("\n")[0]
         elif key == "CWE":
-            desc = desc[:400]
+            desc = desc[:4000]
 
         t["_clean_desc"] = desc
         t["_tokens"] = set(tokenize(desc))
@@ -814,7 +829,8 @@ def link_nodes(
         # pick correct ID field dynamically
         for fld in ("CWE_ID", "CAPEC_ID", "ATTACK_ID", "DEFEND_ID", "CVE_ID"):
             if fld in item:
-                item[fld] = f"{item[fld]} - NLP Link"
+                #item[fld] = f"{item[fld]} - NLP Link"
+                item[fld] = f"{item[fld]}"
                 break
 
     results = results[:top_k]
