@@ -1,6 +1,7 @@
 import argparse
 from veacor.roadmap_builder import run
-
+import argparse
+import subprocess
 
 def main():
     example_text = """
@@ -101,7 +102,8 @@ Modes:
     else:
         run(args.identifier, mode=args.mode)
 
-    run(args.identifier, mode=args.mode)
+    print("🚀 Launching the web app...")
+    subprocess.run(["veacord"])
     return 0
 
 

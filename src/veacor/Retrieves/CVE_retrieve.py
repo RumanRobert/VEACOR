@@ -12,6 +12,7 @@ Outputs a JSON-like dict with fields:
 - Exploit_Tools (from NVD), Advisories, Solutions, Tools (URLs)
 - Source_API, Source_Page, Source_Used
 """
+import time
 
 import requests
 import json
@@ -303,14 +304,24 @@ def fetch_from_nvd(cve_id, timeout=20):
     Returns a dictionary structured exactly like your original `result`.
     Minimal changes made to ensure 'Affected_Versions' is hashable for downstream dedup.
     """
+    time.sleep(6)
 
     nvd_url = f"https://services.nvd.nist.gov/rest/json/cves/2.0?cveId={cve_id}"
 
     try:
         resp = requests.get(nvd_url, timeout=timeout, headers=REQUEST_HEADERS)
+
+        # Raise an exception for bad status codes (4xx or 5xx)
+        if resp.status_code != 200:
+            logging.error(f"NVD API returned HTTP {resp.status_code}. Response: {resp.text[:200]}")
+            return {"CVE_ID": cve_id, "Source_Page": nvd_url}
+
         data = resp.json()
-    except Exception as e:
-        logging.error(f"NVD API request failed: {e}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"NVD API network/HTTP error: {e}")
+        return {"CVE_ID": cve_id, "Source_Page": nvd_url}
+    except ValueError as e:  # Catch JSON parsing errors specifically
+        logging.error(f"NVD API returned invalid JSON: {e}. Response text: {resp.text[:200]}")
         return {"CVE_ID": cve_id, "Source_Page": nvd_url}
 
     vulns = data.get("vulnerabilities", [])

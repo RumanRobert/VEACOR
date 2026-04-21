@@ -195,6 +195,7 @@ def fetch_cve_batches(batch_size=200, max_batches=5):
             "https://services.nvd.nist.gov/rest/json/cves/2.0"
             f"?resultsPerPage={batch_size}&startIndex={start_index}"
         )
+        time.sleep(6)
         try:
             data = requests.get(url, timeout=60).json()
         except Exception as e:

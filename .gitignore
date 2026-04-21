@@ -45,6 +45,8 @@ results*.json
 NLP_eval.py
 NLP_eval_links.py
 
+
+src/veacor/LLM_AUDIT_DATA.json
 *.egg-info/
 # ===============================
 # Any local build/lib folders
