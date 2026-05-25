@@ -78,36 +78,74 @@ VEACOR provides cross-platform installers that automatically:
 - Register the `veacorg` CLI command
 - Validate installation via `veacorg --help`
 
-Available installers:
+# VEACOR
 
-Windows:
-- VEACOR_WIN_installer.bat
+## Installation and Setup
 
-Linux:
-- VEACOR_LINUX_installer.desktop
+The tool can be downloaded from the VEACOR GitHub repository. Click the **"Download ZIP"** button on the repository page, then extract the contents. Installation is done by running the appropriate installer for your operating system (see sections below).
 
-macOS:
-- VEACOR_macOS_installer.command
+> **Fallback:** If you encounter compatibility issues or errors with the installer scripts, you can run `VEACOR_installer.py` directly from the console.
 
-Primary Python installer:
-- VEACOR_installer.py
+Running the setup script installs all necessary libraries and makes the tool immediately available. Upon successful installation, your system's console will automatically open and display the VEACOR logo followed by the output of the `--help` command — this confirms the installation completed successfully.
 
-## Windows
+---
 
-Run:
-VEACOR_WIN_installer.bat
+### Windows
 
-## Linux
+1. After extracting the ZIP, navigate to `VEACOR-main → Installers`.
+2. Double-click **`VEACOR_WIN_installer.bat`** to run the installer.
+3. If a Windows security popup appears, click **"Run anyway"** to allow the installation to proceed.
+4. Once complete, the Windows console will open automatically and display the tool logo and usage information.
 
-chmod +x VEACOR_LINUX_installer.desktop  
-Then execute or double-click it.
+---
 
-## macOS
+### macOS
 
-chmod +x VEACOR_macOS_installer.command  
-Then run:
-./VEACOR_macOS_installer.command
+1. After extracting the archive, open **Terminal**.
+2. Run the following command (adjust the path if you extracted to a different location):
 
+```
+bash ~/Downloads/VEACOR-main/Installers/VEACOR_macOS_installer.command
+```
+
+3. Once the command completes, the Terminal will display usage examples confirming the virtual environment is ready.
+
+> **macOS Gatekeeper:** macOS may block the installer since it is not signed through Apple's developer programme. If prompted, go to **System Settings → Privacy & Security** and explicitly grant permission to run the installer.
+
+#### Activating the virtual environment
+
+On macOS, VEACOR is only accessible within the virtual environment created during installation. **Each time you open a new Terminal session**, you must activate it before using the tool:
+
+```
+cd ~/Downloads/VEACOR-main
+source .venv/bin/activate
+```
+
+The `veacor` command will only be available after this activation step.
+
+---
+
+### Linux
+
+1. After extracting the files, navigate to the `Installers` folder.
+2. Right-click **`VEACOR_LINUX_installer.sh`** and select **"Run as program"**.
+3. Once complete, the tool's help output will be displayed automatically, confirming successful installation.
+
+> **Fallback:** You can also install by running `VEACOR_installer.py` directly with Python. Note that VEACOR currently supports **Python 3.9, 3.10, 3.11, and 3.12** only.
+
+---
+
+## Performance Reference
+
+Run-time is influenced by the number and complexity of nodes in the input. The table below shows example run-times for each supported input type:
+
+| Input       | Number of nodes | Run-time (s) |
+|-------------|-----------------|--------------|
+| CVE-2025-8452 | 73            | 248.9        |
+| CWE-778       | 64            | 224.4        |
+| CAPEC-63      | 120           | 345.0        |
+| T1195         | 37            | 184.7        |
+| D3-AMED       | 137           | 300.4        |
 ## Manual (Advanced)
 
 python VEACOR_installer.py
