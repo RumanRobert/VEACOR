@@ -9,8 +9,8 @@ It correlates data across major MITRE and NVD knowledge bases, linking vulnerabi
 VEACOR was developed as part of a Master's thesis in Information Security
 at Brno University of Technology, Faculty of Electrical Engineering and Communication.
 
-The project was presented at the 32nd Student EEICT 2026 conference
-and received first prize in its category.
+The project was presented at the 32nd Student EEICT 2026 conference,
+where it won first place in its category and received the first prize.
 
 ### Publication
 
@@ -98,7 +98,7 @@ veacor/
 
 ---
 
-# 4. Installation (Automated Installers)
+# 5. Installation (Automated Installers)
 
 VEACOR provides cross-platform installers that automatically:
 
@@ -188,7 +188,7 @@ veacorg --help
 
 ---
 
-# 5. Usage
+# 6. Usage
 
 veacorg <INPUT>
 
@@ -220,7 +220,7 @@ veacorg -desc CWE
 
 ---
 
-# 6. Expansion Modes
+# 7. Expansion Modes
 
 --mode default   (TOP_K = 5)  
 --mode agg       (TOP_K = 20)  
@@ -231,7 +231,7 @@ veacorg CVE-2023-4412 --mode agg
 
 ---
 
-# 7. Output Structure
+# 8. Output Structure
 
 outputs/
 └── roadmap_<INPUT>_output/
@@ -245,7 +245,7 @@ outputs/
 
 ---
 
-# 8. Visualization
+# 9. Visualization
 
 Interactive Dash-based attack graph with:
 
@@ -257,7 +257,7 @@ Interactive Dash-based attack graph with:
 
 ---
 
-# 9. NLP Correlation Engine
+# 10. NLP Correlation Engine
 The semantic matching component is used to infer relationships that are
 not explicitly represented in the structured knowledge bases.
 
@@ -276,7 +276,7 @@ TOP_K = 5
 
 ---
 
-# 10. Operational Use Cases
+# 11. Operational Use Cases
 
 - Vulnerability chaining
 - Red team scenario planning
@@ -286,7 +286,7 @@ TOP_K = 5
 
 ---
 
-# 11. Limitations
+# 12. Limitations
 
 - Internet required
 - NLP links are probabilistic
@@ -294,7 +294,7 @@ TOP_K = 5
 
 ---
 
-# 12. License
+# 13. License
 
 The VEACOR source code is provided for academic and research purposes.
 
