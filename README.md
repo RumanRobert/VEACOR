@@ -1,8 +1,24 @@
 # VEACOR
 ## Vulnerability & Exploit Automated Correlation and Ontology Roadmap Framework
 
-VEACOR is a professional cybersecurity framework designed to automatically generate structured attack graphs from a single input entity.  
+VEACOR is a cybersecurity research framework developed by Róbert Ruman for automated generation of structured attack graphs from a single input entity.
 It correlates data across major MITRE and NVD knowledge bases, linking vulnerabilities, weaknesses, attack patterns, adversarial techniques, and defensive controls into a unified, multi-layer roadmap.
+
+## Project Context
+
+VEACOR was developed as part of a Master's thesis in Information Security
+at Brno University of Technology, Faculty of Electrical Engineering and Communication.
+
+The project was presented at the 32nd Student EEICT 2026 conference
+and received first prize in its category.
+
+### Publication
+
+Ruman, R., Phan, V. A.  
+*Design and Implementation of a Framework for Automatic Generation of Attack Graphs Using Open Sources.*  
+Proceedings II of the 32nd Student EEICT 2026.
+
+DOI: https://doi.org/10.13164/eeict.2026.128
 
 The framework is intended for:
 
@@ -15,6 +31,10 @@ The framework is intended for:
 ---
 
 # 1. Overview
+VEACOR addresses the fragmentation of cybersecurity knowledge across
+multiple vulnerability, weakness, attack-pattern, adversary-technique,
+and defensive-control knowledge bases by automatically discovering
+and representing relationships between them.
 
 VEACOR enables automated correlation across:
 
@@ -49,8 +69,19 @@ The output consists of structured JSON data and an interactive attack graph.
 - Reproducible roadmap generation from minimal input
 
 ---
+# 3. Technologies
 
-# 3. Architecture
+- Python
+- Sentence Transformers
+- NLP / semantic similarity
+- Dash
+- JSON
+- MITRE ATT&CK
+- MITRE D3FEND
+- NVD
+- CVE / CWE / CAPEC / CPE
+
+# 4. Architecture
 
 veacor/
 - cli.py                         — Command-line interface
@@ -137,7 +168,8 @@ The `veacor` command will only be available after this activation step.
 
 ## Performance Reference
 
-Run-time is influenced by the number and complexity of nodes in the input. The table below shows example run-times for each supported input type:
+The following measurements were obtained during evaluation of the framework
+and illustrate how execution time varies with graph size and input type.
 
 | Input       | Number of nodes | Run-time (s) |
 |-------------|-----------------|--------------|
@@ -226,6 +258,8 @@ Interactive Dash-based attack graph with:
 ---
 
 # 9. NLP Correlation Engine
+The semantic matching component is used to infer relationships that are
+not explicitly represented in the structured knowledge bases.
 
 Hybrid similarity model using:
 
@@ -260,13 +294,8 @@ TOP_K = 5
 
 ---
 
-# 12. Research Context
+# 12. License
 
-Developed as part of a diploma thesis on automated attack graph generation.
+The VEACOR source code is provided for academic and research purposes.
 
----
-
-# 13. License
-
-Academic and research use.  
-For commercial use, contact the author.
+For commercial use or licensing inquiries, please contact the author.
