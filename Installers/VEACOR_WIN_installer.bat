@@ -1,7 +1,7 @@
 @echo off
 cd /d %~dp0
 echo [+] Launching installer...
-python -3 VEACOR_installer.py
+py -3 VEACOR_installer.py
 if errorlevel 1 (
   echo.
   echo [!] Installer failed.
